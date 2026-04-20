@@ -1,12 +1,13 @@
 function [Az, El] = topocent(X, dx)
 % Transformation of vector dx into topocentric coordinate system with 
-% origin at X
+% origin at X or, in other words, calculate azimuth and elevation.
+% 
 % (c) by Kai Borre 11-24-96 (slightly modified)
 % $Revision: 1.0 $  $Date: 1997/09/26  $
 % 
 % INPUT:
-%   X           origin of topocenter (3x1) e.g. position of receiver
-%	dx          vector to be transformed (3x1) e.g. vector from receiver to satellite
+%   X           3x1, receiver position in ECEF
+%	dx          3x1, ECEF line-of-sight vector from receiver to satellite 
 % Returns:
 %	Az          azimuth from north positive clockwise [°]
 %	El          elevation angle [°]

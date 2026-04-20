@@ -30,14 +30,14 @@ set(dcm, 'updatefcn', @vis_customdatatip_histo)
 dZTD = dZTD(:)*100;         % convert from [m] to [cm]
 dZTD = dZTD(~isnan(dZTD));	% remove NaN values
 dZTD = dZTD(dZTD ~= 0);     % remove zero values
-n_c = round(1 + 3.322*log(numel(dZTD)));	% number of bins (Sturge´s Rule)
+dZTD(abs(dZTD) > 100) = [];      % remove values over 1m
 std_c = std(dZTD);                          % standard deviation
 bias_c = sum(dZTD)/numel(dZTD);             % bias
 
 % Histogramming
-histogram(dZTD, n_c, 'Normalization', 'probability', 'FaceColor', PlotStruct.coleurs(i,:))
+histogram(abs(dZTD), 'Normalization', 'probability', 'BinWidth', 0.5, 'FaceColor', PlotStruct.coleurs(i,:))
 title({['ZTD difference for ' label]}, 'fontsize', 11);
-xlim(4*[-std_c std_c])
+xlim([0 4*std_c])
 xlabel(sprintf('std-dev = %2.3f, bias = %2.3f; [cm]\n', std_c, bias_c))
 ylabel('[%]')
 ylim([0 1])

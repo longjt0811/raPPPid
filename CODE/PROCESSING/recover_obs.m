@@ -65,3 +65,8 @@ if any(bool_coord_syst)
     obs.coordsyst = line_coord_syst(22:end);   
 end
 
+% create start-date in different time-formats
+hour = obs.startdate(4) + obs.startdate(5)/60 + obs.startdate(6)/3600;
+obs.startdate_jd = cal2jd_GT(obs.startdate(1),obs.startdate(2), obs.startdate(3) + hour/24);
+[obs.doy, ~] = jd2doy_GT(obs.startdate_jd);
+[obs.startGPSWeek, obs.startSow] = cal2gpstime(obs.startdate);

@@ -1,5 +1,7 @@
 function [sunECEF] = sunPositionECEF(y, m, D, UT)
 % calculate approximate position of sun in Earth-Centered-Fixed-Frame [km]
+% alternative algorithm is provided in:
+% Galileo High Accuracy Service Reference User Algorithm - Technical Note
 % 
 % INPUT:
 %   y               year, 4-digit

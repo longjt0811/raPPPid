@@ -1,4 +1,4 @@
-function [X, V, cutoff, status] = prec_satpos(precEph, prn, sv, Ttr, cutoff, status, bool_print)
+function [X, V, exclude, status] = prec_satpos(precEph, prn, sv, Ttr, exclude, status, bool_print)
 % Interpolation of precise ephemerides (position and velocity) to the time
 % of the emission of the observation with a polynom degree 11.
 %
@@ -14,12 +14,12 @@ function [X, V, cutoff, status] = prec_satpos(precEph, prn, sv, Ttr, cutoff, sta
 %   prn         raPPPid satellite number [0, 410]
 % 	sv          satellite number [0, 99]
 % 	Ttr         time of observation in seconds of week
-% 	cutoff      boolean, true if satellite has to be excluded
+% 	exclude     boolean, true if satellite has to be excluded
 %   bool_print  boolean, true if messages are printed to command window
 % OUTPUT:
 %   X           vector with XYZ coordinates
 %   V           vector with XYZ velocities
-%   cutoff      boolean, true if satellite has to be excluded
+%   exclude     boolean, true if satellite has to be excluded
 %
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
@@ -31,7 +31,7 @@ if all(precEph.t(:,sv) == 0)     % no precise ephemeris data for this satellite 
 %         fprintf('\nNo precise orbit data for satellite %.0f in SOW %.3f              \n', prn, Ttr);
 %     end
     X = NaN(3,1); V = NaN(3,1);
-    cutoff = true;
+    exclude = true;
     status(:) = 6;
     return
 end
@@ -71,11 +71,11 @@ Z_ipol = precEph.Z(epochs,sv);
 % check for missing data and if interpolation is possible
 if isempty(epochs) || any((X_ipol == 0) | (Y_ipol == 0) | (Z_ipol == 0))
     % interpolation is not possible (one zero makes degree 12 impossible)
-    if bool_print
-        fprintf('\nNo precise orbit data for satellite %.0f in SOW %.3f              \n', prn, Ttr);
-    end
+    % if bool_print
+    %     fprintf('\nNo precise orbit data for satellite %.0f in SOW %.3f              \n', prn, Ttr);
+    % end
     X = NaN(3,1); V = NaN(3,1);
-    cutoff = true;
+    exclude = true;
     status(:) = 6;
     return
 end

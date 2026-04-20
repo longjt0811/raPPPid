@@ -15,9 +15,11 @@ if isfile('Path.m') && isfolder(Path.DATA) && isfolder(Path.RESULTS) && isfolder
     addpath(pwd)                    % add current path where RUN.m and Path.m are located
     addpath(genpath(Path.CODE));	% add directory of source code
     % print info to command windo
-    fprintf(['\nraPPPid, ' DEF.version '\n'])
-    fprintf('GitHub: https://github.com/TUW-VieVS/raPPPid\n')
-    fprintf('Documentation: https://vievswiki.geo.tuwien.ac.at/en/raPPPid\n\n\n')
+    fprintf('\n----------------------------------------------------------------\n')
+    fprintf(['| raPPPid, ' DEF.version '                              |\n'])
+    fprintf('| GitHub: https://github.com/TUW-VieVS/raPPPid                 |\n')
+    fprintf('| Documentation: https://vievswiki.geo.tuwien.ac.at/en/raPPPid |\n')
+    fprintf('----------------------------------------------------------------\n\n\n')
     % start GUI
     GUI_PPP();
 

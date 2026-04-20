@@ -42,6 +42,7 @@ try  % requires Statistics and Machine Learning Toolbox
     % whiskers = 0, values outside the 75% and 25% quantile are outliers
     % jitter = 1, outliers are maximally distributed 
 catch
+	fprintf('BoxPlot requires Statistics and Machine Learning Toolbox.\n')
     fprintf('BoxPlot will work in a future version of raPPPid.\n')
 end
 

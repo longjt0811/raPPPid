@@ -38,9 +38,9 @@ dN(bool) = []; dE(bool) = []; dH(bool) = [];
 % plot
 fig_3coord = figure('Name','Three Coordinates Plot', 'NumberTitle','off');
 hold on
-plot(seconds, dH, 'color', [0 0.82 0], 'LineWidth', 1);
 plot(seconds, dN, 'color', [0.82 0 0], 'LineWidth', 1);
 plot(seconds, dE, 'color', [0 0 0.82], 'LineWidth', 1);
+plot(seconds, dH, 'color', [0 0.82 0], 'LineWidth', 1);
 if ~isempty(resets); vline(resets, 'k:'); end	% plot vertical lines for resets
 
 % plot black line in epochs without no solution
@@ -57,7 +57,7 @@ str_dH = sprintf('%.3f', RMS_dH*100);
 str_dN_ = ['dN (rms = ' str_dN ' ' unit];
 str_dE_ = ['dE (rms = ' str_dE ' ' unit];
 str_dH_ = ['dH (rms = ' str_dH ' ' unit];
-legend(str_dH_, str_dN_, str_dE_, 'Location', 'Best')
+legend(str_dN_, str_dE_, str_dH_, 'Location', 'Best')
 
 % % create simple legend
 % legend('dU','dN','dE', 'Location', 'Best')        

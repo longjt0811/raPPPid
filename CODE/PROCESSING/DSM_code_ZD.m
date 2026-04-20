@@ -1,4 +1,4 @@
-function Adjust = Designmatrix_code_ZD(Adjust, Epoch, model, settings)
+function [A, omc] = DSM_code_ZD(Adjust, Epoch, model, settings)
 % Creates Design-Matrix and calculates observed minus computed range for 
 % code solution and Zero-Difference-Model
 % 
@@ -8,7 +8,8 @@ function Adjust = Designmatrix_code_ZD(Adjust, Epoch, model, settings)
 % 	model    	struct, model corrections for all visible sats
 %   settings 	struct, settings of processing from GUI
 % OUTPUT: 
-%   Adjust      updated with A, omc
+%   A           Designmatrix
+%   omc         observed-minus-computed vector
 %
 %   Revision:
 %       ...
@@ -89,7 +90,7 @@ if settings.BIASES.estimate_rec_dcbs
 end
 
 % --- Build A-Matrix
-A = [dR_dx, dR_dy, dR_dz, dR_dvx, dR_dvy, dR_dvz, dR_dtrop, dR_time_dcb] .*  ~exclude;
+A = [dR_dx, dR_dy, dR_dz, dR_dvx, dR_dvy, dR_dvz, dR_dtrop, dR_time_dcb, zeros(s_f, 1)] .*  ~exclude;
 
 % --- add ionosphere estimation part to A and omc
 if strcmpi(settings.IONO.model,'Estimate with ... as constraint') || strcmpi(settings.IONO.model,'Estimate')
@@ -121,7 +122,3 @@ if strcmpi(settings.IONO.model,'Estimate with ... as constraint') || strcmpi(set
     end
 end
 
-
-%% --- save in Adjust
-Adjust.A = A;
-Adjust.omc = omc;

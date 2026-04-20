@@ -98,20 +98,23 @@ end
 
 %% DOPPLER
 doppler_model = [];
-if contains(settings.PROC.method, 'Doppler') && ~strcmp(settings.PROC.method, 'Code (Doppler Smoothing)')
-    % get receiver and satellite position and velocity (in ECEF)
-    rec_p = param_(1:3);
-    sat_p = model.ECEF_X;
-    rec_v = param(4:6);
-    sat_v = model.ECEF_V;
+if contains(settings.PROC.method, '+ Doppler')
+    pos_r = param_(1:3);        % receiver position  [m]
+    vel_r = param_(4:6);        % receiver velocity  [m/s]
+    pos_s = model.ECEF_X;       % satellite position [m]
+    vel_s = model.ECEF_V;       % satellite velocity [m/s]
+
+    % get receiver clock drift
+    rec_clk_drift = param_(strcmp(Adjust.ORDER_PARAM, 'rec_clk_drift'));
     
     % calculate velocity and position part for observation equation, check
     % Diss. Glaner p.13
-    v =  - sat_v + rec_v;
-    r = (- sat_p + rec_p) ./ vecnorm(- sat_p + rec_p);
+    v =  - vel_s + vel_r;
+    r = (- pos_s + pos_r) ./ vecnorm(- pos_s + pos_r);
     
-    % model doppler observation
-    doppler_model = dot(r,v)' ./Epoch.l1;               % put together, [Hz] (?)
+    % model doppler observation [m/s]
+    dot_r_v = repmat(dot(r,v), 1, proc_freq)';
+    doppler_model = dot_r_v  + rec_clk_drift;
     
     % exclude satellites because of, for example, cutoff angle:
     doppler_model(exclude) = 0;

@@ -26,6 +26,27 @@ bool_archive = true;        % true if archive is downloaded
 decompressed = {''};
 
 switch settings.BIASES.code
+    case 'IGS'
+        if settings.ORBCLK.MGEX
+            URL_host = 'https://cddis.nasa.gov';
+            URL_folder = {['/archive/gnss/products/' gpsweek '/']};
+            file = {['IGS0DEMFIN_' yyyy doy '0000_01D_01D_OSB.BIA.gz']};
+            % create folder and prepare the download
+            target = [Path.DATA, 'BIASES/', yyyy, '/', doy '/'];
+            [~, ~] = mkdir(target);
+            % download
+            file_status = get_cddis_data(URL_host, URL_folder, file, {target}, false);
+            if file_status == 0
+                errordlg('No IGS final biases found on server. Please specify different source!', 'Error');
+            end
+            % decompress
+            decompressed = unzip_and_delete(file, {target});
+            % save file-path
+            settings.BIASES.code_file = decompressed{1};
+        else
+            errordlg('Please activate MGEX product on Orbit/Clock to use IGS biases!', 'Error');
+        end
+        
     case 'CAS Multi-GNSS DCBs'      % ||| implement weekly and daily
         % create folder and prepare the download
         target = [Path.DATA, 'BIASES/', yyyy, '/', doy '/'];
@@ -40,26 +61,26 @@ switch settings.BIASES.code
         % try different files until one is successfully downloaded
         file = file_3;                      % try first file
         [~, decompr, ~] = fileparts(file);  % remove the zip file extension
-        if ~isfile([target file]) && ~isfile([target decompr])
+        if ~isfile([target file]) && ~isfile([target decompr]) && ~isfile([target decompr '.mat'])
             try websave([target file], [httpserver '/' file]); 
             catch; delete([target file '.html']); end
         end
-        if ~isfile([target file]) && ~isfile([target decompr])
+        if ~isfile([target file]) && ~isfile([target decompr]) && ~isfile([target decompr '.mat'])
             file = file_2;      [~, decompr, ~] = fileparts(file);
             try websave([target file], [httpserver '/' file]); 
             catch; delete([target file '.html']); end
         end
-        if ~isfile([target file]) && ~isfile([target decompr])
+        if ~isfile([target file]) && ~isfile([target decompr]) && ~isfile([target decompr '.mat'])
             file = file_1;      [~, decompr, ~] = fileparts(file);
             try websave([target file], [httpserver '/' file]); 
             catch; delete([target file '.html']); end
         end
-        if ~isfile([target file]) && ~isfile([target decompr])
+        if ~isfile([target file]) && ~isfile([target decompr]) && ~isfile([target decompr '.mat'])
             file = file_0;      [~, decompr, ~] = fileparts(file);
             try websave([target file], [httpserver '/' file]); 
             catch; delete([target file '.html']);  end
         end    
-        if ~isfile([target file]) && ~isfile([target decompr])
+        if ~isfile([target file]) && ~isfile([target decompr]) && ~isfile([target decompr '.mat'])
             file = file_0;      [~, decompr, ~] = fileparts(file);
             try 
                 websave([target file], [httpserver '/' file]); 
@@ -67,7 +88,7 @@ switch settings.BIASES.code
                 delete([target file '.html']);
                 % for example 2020/001 (My First PPP Processing)
                 URL_host = 'igs.ign.fr:21';     
-                URL_folder = {['/pub/igs/products/mgex/dcb/' yyyy '/']};
+                URL_folder = {['/pub/igs/products/bias/' yyyy '/']};
                 file_status = ftp_download(URL_host, URL_folder{1}, file, target, true);
                 [~, decompr, ~] = fileparts(file);
 
@@ -96,21 +117,21 @@ switch settings.BIASES.code
         % try different files until one is successfully downloaded
         file = file_3;                      % try first file
         [~, decompr, ~] = fileparts(file);  % remove the zip file extension
-        if ~isfile([target file]) && ~isfile([target decompr])
+        if ~isfile([target file]) && ~isfile([target decompr]) && ~isfile([target decompr '.mat'])
             try websave([target file], [httpserver '/' file]); 
             catch; delete([target file '.html']);  end
         end
-        if ~isfile([target file]) && ~isfile([target decompr])
+        if ~isfile([target file]) && ~isfile([target decompr]) && ~isfile([target decompr '.mat'])
             file = file_2;      [~, decompr, ~] = fileparts(file);
             try websave([target file], [httpserver '/' file]); 
             catch; delete([target file '.html']);  end
         end
-        if ~isfile([target file]) && ~isfile([target decompr])
+        if ~isfile([target file]) && ~isfile([target decompr]) && ~isfile([target decompr '.mat'])
             file = file_1;      [~, decompr, ~] = fileparts(file);
             try websave([target file], [httpserver '/' file]); 
             catch; delete([target file '.html']);  end
         end
-        if ~isfile([target file]) && ~isfile([target decompr])
+        if ~isfile([target file]) && ~isfile([target decompr]) && ~isfile([target decompr '.mat'])
             file = file_0;      [~, decompr, ~] = fileparts(file);
             try websave([target file], [httpserver '/' file]); 
             catch; delete([target file '.html']);  end
@@ -167,16 +188,22 @@ switch settings.BIASES.code
         % create folder and prepare download
         targets = repmat({[Path.DATA, 'BIASES/', yyyy, '/']},3,1);
         [~, ~] = mkdir(targets{1});
-        URL_host = 'ftp.aiub.unibe.ch:21';
+        host = 'http://www.aiub.unibe.ch/download/';
         URL_folder = repmat({['/CODE/' yyyy '/']},3,1);
         files = {['P1P2' yyyy(3:4) mm '_ALL.DCB.Z'];...
             ['P1C1' yyyy(3:4) mm '_RINEX.DCB.Z'];...
             ['P2C2' yyyy(3:4) mm '_RINEX.DCB.Z'];};
+        decomp =  {['P1P2' yyyy(3:4) mm '_ALL.DCB'];...
+            ['P1C1' yyyy(3:4) mm '_RINEX.DCB'];...
+            ['P2C2' yyyy(3:4) mm '_RINEX.DCB'];};
         % download, unzip, save file-path
         for i = 1:length(files)
-            file_status = ftp_download(URL_host, URL_folder{i}, files{i}, targets{i}, true);
-            if file_status == 0
-                errordlg('No CODE DCBs found on server. Please change source of biases!', 'Error');
+            if ~isfile([target{1} file{1}]) && ~isfile([target{1} decomp{1}]) && ~isfile([target{1} decomp{1} '.mat'])
+                try
+                    websave([targets{i} files{i}], [host URL_folder{i} files{i}]);
+                catch
+                    errordlg('No CODE DCBs found on server. Please change source of biases!', 'Error');
+                end
             end
             decompressed = unzip_and_delete(files(i), targets(i));
             settings.BIASES.code_file{i} = decompressed{1};
@@ -184,8 +211,10 @@ switch settings.BIASES.code
         
     case 'WUM MGEX'
         % create folder and prepare download
-        target = {[Path.DATA, 'BIASES/', yyyy, '/' doy]};
+        target = {[Path.DATA, 'BIASES/', yyyy, '/' doy '/']};
         [~, ~] = mkdir(target{1});
+        URL_host_1 = 'ftps://bdspride.com/';
+        URL_folders_1 = ['wum/' gpsweek '/'];
         URL_host_2 = 'https://cddis.nasa.gov';
         if str2double(gpsweek) > 2230
             URL_folders_2 = {['/archive/gnss/products/' gpsweek]};
@@ -205,7 +234,13 @@ switch settings.BIASES.code
                 file_2 = {['WUM0MGXFIN_' yyyy doy '0000_01D_30S_OSB.BIA.gz']};
         end
         % download
-        file_status = ftp_download(URL_host, URL_folder{1}, file{1}, target{1}, false);
+        file_status = CurlDownload([target{1} file{1}], [URL_host_1 URL_folders_1 file{1}], false);
+        if file_status == 0
+            file_status = CurlDownload([target{1} file{1}], [URL_host_1 URL_folders_1 file_2{1}], false);
+        end
+        if file_status == 0
+            file_status = ftp_download(URL_host, URL_folder{1}, file{1}, target{1}, false);
+        end
         if file_status == 0
             file_status = ftp_download(URL_host, URL_folder{1}, file_2{1}, target{1}, false);
         end
@@ -261,27 +296,35 @@ switch settings.BIASES.code
         
     case 'CODE OSBs'
         % create folder and prepare download
-        target = {[Path.DATA, 'BIASES/', yyyy, '/' doy]};
+        target = {[Path.DATA, 'BIASES/', yyyy, '/' doy '/']};
         [~, ~] = mkdir(target{1});
-        URL_host = 'ftp.aiub.unibe.ch:21';
+        host = 'http://www.aiub.unibe.ch/download/';
         switch settings.ORBCLK.prec_prod_type
             case 'Final'
                 URL_folder = {['/CODE/' yyyy '/']};
                 if str2double(gpsweek) >= 2238
                     file = {['COD0OPSFIN_' yyyy doy '0000_01D_01D_OSB.BIA.gz']};
+                    decomp = {['COD0OPSFIN_' yyyy doy '0000_01D_01D_OSB.BIA']};
                 else
                     file = {['COD', gpsweek, dow, '.BIA.Z']};
+                    decomp = {['COD', gpsweek, dow, '.BIA']};
                 end
             case 'Rapid'
                 URL_folder = {'/CODE/'};
                 file = {['COD0OPSRAP_' yyyy doy '0000_01D_01D_OSB.BIA']};
+                decomp = {['COD0OPSRAP_' yyyy doy '0000_01D_01D_OSB.BIA']};
                 bool_archive = false;
             otherwise
                 errordlg([settings.ORBCLK.prec_prod_type ' CODE OSBs are not implemented!'], 'Error');
         end
-
         % download, unzip, save file-path
-        file_status = ftp_download(URL_host, URL_folder{1}, file{1}, target{1}, true);
+        if ~isfile([target{1} file{1}]) && ~isfile([target{1} decomp{1}]) && ~isfile([target{1} decomp{1} '.mat'])
+            try
+                websave([target{1} file{1}], [host URL_folder{1} file{1}]);
+            catch
+                errordlg('No CODE Biases found on server. Please change source of biases!', 'Error');
+            end
+        end
         if ~bool_archive        % pretend archive, otherwise code does not work
             file{1} = [file{1} '.gz'];
         end
@@ -307,19 +350,25 @@ switch settings.BIASES.code
 
     case 'CODE MGEX'
         % create folder and prepare download
-        target = {[Path.DATA, 'BIASES/', yyyy, '/' doy]};
+        target = {[Path.DATA, 'BIASES/', yyyy, '/' doy '/']};
         [~, ~] = mkdir(target{1});
-        URL_host = 'ftp.aiub.unibe.ch:21';
+        host = 'http://www.aiub.unibe.ch/download/';
         URL_folder = {['/CODE_MGEX/CODE/' yyyy '/']};
         if str2double(gpsweek) >= 2238
             file = {['COD0MGXFIN_' yyyy doy '0000_01D_01D_OSB.BIA.gz']};
+            decomp = {['COD0MGXFIN_' yyyy doy '0000_01D_01D_OSB.BIA']};
         else
             file = {['COM', gpsweek, dow, '.BIA.Z']};
+            decomp = {['COM', gpsweek, dow, '.BIA']};
         end
         % download and unzip, save file-path
-        file_status = ftp_download(URL_host, URL_folder{1}, file{1}, target{1}, true);
-        if file_status == 0
-            errordlg('No CODE MGEX Biases found on server. Please change source of biases!', 'Error');
+        % download, unzip, save file-path
+        if ~isfile([target{1} file{1}]) && ~isfile([target{1} decomp{1}]) && ~isfile([target{1} decomp{1} '.mat'])
+            try
+                websave([target{1} file{1}], [host URL_folder{1} file{1}]);
+            catch
+                errordlg('No CODE MGEX Biases found on server. Please change source of biases!', 'Error');
+            end
         end
         decompressed = unzip_and_delete(file(1), target(1));
         % save file-path
@@ -382,6 +431,21 @@ switch settings.BIASES.code
         file_status = ftp_download(URL_host, URL_folder{1}, file{1}, target{1}, true);
         if file_status == 0
             errordlg('No HUST MGEX Biases found on server. Please change source of biases!', 'Error');
+        end
+        decompressed = unzip_and_delete(file(1), target(1));
+        % save file-path
+        settings.BIASES.code_file = decompressed{1};
+
+    case 'WCC MGEX'
+        target = {[Path.DATA, 'BIASES/', yyyy, '/' doy '/']};
+        [~, ~] = mkdir(target{1});
+        URL_host_1 = 'ftps://bdspride.com/';
+        URL_folders_1 = ['wcc/' gpsweek '/'];
+        file   = {['WCC0OPSFIN_' yyyy doy '0000_01D_01D_OSB.BIA.gz']};
+        % download
+        file_status = CurlDownload([target{1} file{1}], [URL_host_1 URL_folders_1 file{1}], true);
+        if file_status == 0
+            errordlg('No WCC found on server (ftps://bdspride.com/). Please change source of biases!', 'Error');
         end
         decompressed = unzip_and_delete(file(1), target(1));
         % save file-path

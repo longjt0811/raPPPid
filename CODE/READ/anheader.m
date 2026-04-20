@@ -366,7 +366,7 @@ try
 catch
     [~, obs_filename, ext] = fileparts(path_file);
     if bool_print; fprintf([obs_filename ext ': contains no leap second information.\n']); end
-    hour = obs.startdate(4) + obs.startdate(5)/60 + obs.startdate(6)/3660;
+    hour = obs.startdate(4) + obs.startdate(5)/60 + obs.startdate(6)/3600;
     start_jd = cal2jd_GT(obs.startdate(1),obs.startdate(2), obs.startdate(3) + hour/24);
     obs.leap_sec = GetLeapSec_UTC_GPS(start_jd);
     if bool_print; fprintf(['Used leap seconds: ' num2str(obs.leap_sec) ' \n']); end

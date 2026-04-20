@@ -1,11 +1,13 @@
 function vis_plotReceiverClock(hours, strXAxis, param, resets_h, ff, ...
-    settings, clk_file, station, startdate, NO_PARAM)
+    settings, clk_file, station, startdate, NO_PARAM, ORDER_PARAM)
 % Plots estimated receiver clock error(s):
-%   o receiver clock error (usually GPS) and receiver clock offsets (to 
+%   o receiver clock error (usually GPS) and receiver clock offsets (to
 %     usually GPS)
 %       OR
 %   o code and phase receiver clock error for each GNSS (decoupled clock
 %     model)
+%       AND
+%   o receiver clock drift (Doppler shift was used for velocity estimation)
 %
 % INPUT:
 %   hours       vector, time in hours from beginning of processing
@@ -18,24 +20,32 @@ function vis_plotReceiverClock(hours, strXAxis, param, resets_h, ff, ...
 %   station     string, 4-digit station identifier
 %   startdate   [year month day]
 %   NO_PARAM    number of estimated parameters
+%   ORDER_PARAM estimated parameters
 % OUTPUT:
 %   []
-% 
+%
 % Revision:
 %   2023/11/08, MFWG: adding QZSS
 %   2024/01/26, MFWG: plot receiver clock errors from DCM
-% 
+%
 % using vline.m or hline.m (c) 2001, Brandon Kuczenski
 %
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
 
 
+% ||| switch to ORDER_PARAM instead of indices
+
+
+
 % check if receiver clock is decoupled
 DecoupledClockModel = strcmp(settings.IONO.model, 'Estimate, decoupled clock');
 
-% true if GNSS was processed and should be plotted 
-isGPS  = settings.INPUT.use_GPS;          
+% check if receiver clock drift is estimated
+bool_rec_clk_drift = contains(settings.PROC.method, ' + Doppler') && any(contains(ORDER_PARAM, 'rec_clk_drift'));
+
+% true if GNSS was processed and should be plotted
+isGPS  = settings.INPUT.use_GPS;
 isGLO  = settings.INPUT.use_GLO;
 isGAL  = settings.INPUT.use_GAL;
 isBDS  = settings.INPUT.use_BDS;
@@ -43,13 +53,14 @@ isQZSS = settings.INPUT.use_QZSS;
 
 m2ns = 1e9 / Const.C;       % convert from [m] to [ns]
 
-% consider shift in parameter vector if new parameters were added 
-if DecoupledClockModel 
+% consider shift in parameter vector if new parameters were added
+d = 0;
+if DecoupledClockModel && NO_PARAM > DEF.NO_PARAM_DCM
     d = NO_PARAM - DEF.NO_PARAM_DCM;
-else
+elseif NO_PARAM > DEF.NO_PARAM_ZD
     d = NO_PARAM - DEF.NO_PARAM_ZD;
 end
-  
+
 
 % extract estimated receiver errors for each GNSS [m]
 if ~DecoupledClockModel
@@ -60,6 +71,9 @@ if ~DecoupledClockModel
     rec_clk_GAL  = param(14+d,:) * m2ns;
     rec_clk_BDS  = param(17+d,:) * m2ns;
     % rec_clk_QZSS is handled later (to avoid errors with old processings)
+    if bool_rec_clk_drift
+        rec_clk_drift = param(23+d,:) / Const.C; % convert from [m/s] to [s/s]
+    end
 else
     m = 2;      % seperate receiver clock error for code and phase
     % get code receiver clock errors
@@ -73,13 +87,16 @@ else
     rec_clk_GAL(2,:) = param(15+d,:) * m2ns;
     rec_clk_BDS(2,:) = param(16+d,:) * m2ns;
     % rec_clk_QZSS is handled later (to avoid errors with old processings)
+    if bool_rec_clk_drift
+        rec_clk_drift = param(33+d,:) / Const.C;  % convert from [m/s] to [s/s]
+    end
 end
 
 
 % preparations for plotting
 strYAxis = 'dt_{rec} [ns]';
-fig_clk = figure('Name', ['Clock Plot, ' ff ' solution'], 'NumberTitle','off');
-n = isGPS + isGLO + isGAL + isBDS + isQZSS;     % number of plots
+fig_clk = figure('Name', ['Receiver Clock Error, ' ff ' solution'], 'NumberTitle','off');
+n = isGPS + isGLO + isGAL + isBDS + isQZSS + bool_rec_clk_drift;     % number of plots
 i = 1;
 
 
@@ -102,28 +119,37 @@ if isGPS
         % figure, histogram(diff,'Normalization', 'probability')
     end
 end
+
 % plot Glonass
 if isGLO
     i = plot_clk(rec_clk_GLO, i, n, m, resets_h, hours, ff, strXAxis, ['GLO ' strYAxis], DEF.COLOR_R);
 end
+
 % plot Galileo
 if isGAL
     i = plot_clk(rec_clk_GAL, i, n, m, resets_h, hours, ff, strXAxis, ['GAL ' strYAxis], DEF.COLOR_E);
 end
+
 % plot Beidou
 if isBDS
     i = plot_clk(rec_clk_BDS, i, n, m, resets_h, hours, ff, strXAxis, ['BDS ' strYAxis], DEF.COLOR_C);
 end
+
 % plot QZSS
 if isQZSS
     if ~strcmp(settings.IONO.model, 'Estimate, decoupled clock')
         m = 1; rec_clk_QZS = param(17,:) * m2ns;
     else
-        m = 2; 
+        m = 2;
         rec_clk_QZS(1,:) = param( 9,:) * m2ns;
         rec_clk_QZS(2,:) = param(14,:) * m2ns;
     end
-    i = plot_clk(rec_clk_QZS, i, n, m, resets_h, strTitle, hours, ff, strXAxis, ['QZSS ' strYAxis], DEF.COLOR_J);
+    i = plot_clk(rec_clk_QZS, i, n, m, resets_h, hours, ff, strXAxis, ['QZSS ' strYAxis], DEF.COLOR_J);
+end
+
+% plot receiver clock drift
+if bool_rec_clk_drift
+    i = plot_clk(rec_clk_drift, i, n, 1, resets_h, hours, ff, strXAxis, 'dt_{rec} drift [s/s]', [0 0 0]);
 end
 
 % add customized datatip
@@ -185,9 +211,10 @@ function i = plot_clk(rec_clk, i, n, m, resets_h, hours, ff, strX, strY, color)
 
 subplot(n,1,i)
 lstyle = '-';
+xmax = hours(end);
 
 % loop to plot code and phase clock error if necessary
-for j = 1:m         
+for j = 1:m
     hold on
     % extract and plot
     is_zero = (rec_clk(j,:) == 0);
@@ -200,7 +227,7 @@ for j = 1:m
     ylabel(strY)
     grid on;
     if ~isempty(resets_h); vline(resets_h, 'k:'); end	% plot vertical lines for resets
-    xlim([0, hours(end)])
+    xlim([0, xmax])
     Grid_Xoff_Yon()
     lstyle = '--';       % for potential plot of receiver phase clock error
 end
@@ -208,7 +235,7 @@ end
 if m == 2
     legend('code', 'phase')
 end
-    
+
 i = i + 1;      % increase number of subplot
 end
 

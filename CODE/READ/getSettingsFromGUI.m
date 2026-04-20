@@ -289,6 +289,31 @@ settings.OTHER.mp_cooldown = str2double(get(handles.edit_mp_cooldown, 'String'))
 
 
 
+%% Model - Kinematic
+
+% kinematic scenario
+settings.KINE.bool_kinematic = get(handles.checkbox_kinematic,  'Value');
+
+% Offsets
+settings.KINE.bool_offset = get(handles.checkbox_offsets,  'Value');
+settings.KINE.offset(1) = str2double(get(handles.edit_offset_x,  'String'));
+settings.KINE.offset(2) = str2double(get(handles.edit_offset_y,  'String'));
+settings.KINE.offset(3) = str2double(get(handles.edit_offset_z,  'String'));
+
+% Orientation Mode
+settings.KINE.orient_mode = handles.uibuttongroup_orientation_mode.SelectedObject.String;
+
+% Satellite PPP
+settings.KINE.satellite.bool  = get(handles.checkbox_satellite, 'Value');
+settings.KINE.satellite.ID    = get(handles.edit_sat_id, 'String');
+settings.KINE.satellite.mass  = str2double(get(handles.edit_sat_mass, 'String'));
+settings.KINE.satellite.area  = str2double(get(handles.edit_sat_area, 'String'));
+settings.KINE.satellite.drag  = str2double(get(handles.edit_sat_drag, 'String'));
+settings.KINE.satellite.solar = str2double(get(handles.edit_sat_solar, 'String'));
+
+
+
+
 %% Estimation - Ambiguity fixing
 
 
@@ -433,6 +458,11 @@ settings.ADJ.filter.var_DCB = str2double( get(handles.edit_filter_dcbs_sigma0, '
 settings.ADJ.filter.Q_DCB = str2double( get(handles.edit_filter_dcbs_Q, 'String') )^2;
 settings.ADJ.filter.dynmodel_DCB = get(handles.popupmenu_filter_dcbs_dynmodel, 'Value')-1;
 
+% Receiver Clock Drift
+settings.ADJ.filter.var_rclk_drift = str2double( get(handles.edit_filter_rec_clk_drift_sigma0, 'String') )^2;
+settings.ADJ.filter.Q_rclk_drift = str2double( get(handles.edit_filter_rec_clk_drift_Q, 'String') )^2;
+settings.ADJ.filter.dynmodel_rclk_drift = get(handles.popupmenu_filter_rec_clk_drift_dynmodel, 'Value')-1;
+
 % Float Ambiguities
 settings.ADJ.filter.var_amb = str2double( get(handles.edit_filter_ambiguities_sigma0, 'String') )^2; 	% a-priori-variance of float ambiguities
 settings.ADJ.filter.Q_amb  = str2double( get(handles.edit_filter_ambiguities_Q, 'String') )^2;         % system noise of float ambiguities
@@ -443,22 +473,15 @@ settings.ADJ.filter.var_iono = str2double( get(handles.edit_filter_iono_sigma0, 
 settings.ADJ.filter.Q_iono = str2double( get(handles.edit_filter_iono_Q, 'String') )^2;          % system noise of ionosphere
 settings.ADJ.filter.dynmodel_iono = get(handles.popupmenu_filter_iono_dynmodel, 'Value') - 1;
 
-% Satellite PPP
-settings.ADJ.satellite.bool  = get(handles.checkbox_satellite, 'Value');
-settings.ADJ.satellite.ID    = get(handles.edit_sat_id, 'String');
-settings.ADJ.satellite.mass  = str2double(get(handles.edit_sat_mass, 'String'));
-settings.ADJ.satellite.area  = str2double(get(handles.edit_sat_area, 'String'));
-settings.ADJ.satellite.drag  = str2double(get(handles.edit_sat_drag, 'String'));
-settings.ADJ.satellite.solar = str2double(get(handles.edit_sat_solar, 'String'));
-settings.ADJ.satellite.orient_mode = handles.uibuttongroup_orientation_mode.SelectedObject.String;
 
 
 %% Estimation - Weighting
 
 % observation weights
 settings.ADJ.var_code 		 = str2double( get(handles.edit_Std_CA_Code, 'String') )^2;
-settings.ADJ.var_phase       = str2double( get(handles.edit_Std_Phase, 'String') )^2;
-settings.ADJ.var_iono        = str2double( get(handles.edit_Std_Iono, 'String') )^2;
+settings.ADJ.var_phase       = str2double( get(handles.edit_Std_Phase,   'String') )^2;
+settings.ADJ.var_iono        = str2double( get(handles.edit_Std_Iono,    'String') )^2;
+settings.ADJ.var_doppler     = str2double( get(handles.edit_Std_Doppler, 'String') )^2;
 
 % number of epochs where ionospheric constraint is used
 settings.IONO.constraint_until = str2double(handles.edit_constraint_until.String);  % [minute]
@@ -504,7 +527,7 @@ settings.ADJ.var_phase_frq = cell2mat(T).^2;   % manipulated table used during p
 %% Run - Processing Options
 
 % Processing name
-settings.PROC.name = get(handles.edit_output, 'String');
+settings.PROC.name_GUI = get(handles.edit_output, 'String');
 
 % Processing method
 value = get(handles.popupmenu_process, 'Value');
@@ -582,6 +605,7 @@ settings = readExcludeSatellites(settings);
 settings.EXP.data4plot      = handles.checkbox_exp_data4plot.Value;
 settings.EXP.results_txt    = handles.checkbox_exp_results_txt.Value;
 settings.EXP.results_csv    = handles.checkbox_exp_results_csv.Value;
+settings.EXP.bool_csv_utc   = handles.checkbox_exp_results_csv_utc.Value;
 settings.EXP.epoch_decimals = handles.edit_exp_digits_time.String;
 settings.EXP.settings       = handles.checkbox_exp_settings.Value;
 settings.EXP.settings_summary = handles.checkbox_exp_settings_summary.Value;
@@ -628,6 +652,7 @@ settings.PLOT.map       	= get(handles.checkbox_plot_googlemaps,   	'Value');
 settings.PLOT.UTM       	= get(handles.checkbox_plot_UTM,   			'Value');
 settings.PLOT.coordxyz      = get(handles.checkbox_plot_xyz,            'Value');
 settings.PLOT.XYZ      		= get(handles.checkbox_plot_xyzplot,        'Value');
+settings.PLOT.velocity 		= get(handles.checkbox_plot_velocity,       'Value');
 settings.PLOT.elevation     = get(handles.checkbox_plot_elev,           'Value');
 settings.PLOT.satvisibility = get(handles.checkbox_plot_sat_visibility, 'Value');
 settings.PLOT.amb     		= get(handles.checkbox_plot_amb,      		'Value');

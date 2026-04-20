@@ -3,16 +3,17 @@ function [handles] = setSettingsToGUI(structure, handles, bool_settings)
 % Fields which are not used:
 %   settings.INPUT.bool_batch
 %   settings.INPUT.bool_parfor
-% 
-% INPUT:    
+%
+% INPUT:
 %   structure		struct, either "settings" or "parameters"
 % 	handles     	struct, handles of raPPPid GUI
 %	bool_settings	boolean, true if settings, false if parameters
-% OUTPUT:   
+% OUTPUT:
 %   handles     	struct, handles of raPPPid GUI
-%  
+%
 % Revision:
 %   2023/10/31, MFWG: adding QZSS and panel weighting
+%   2026/02/26, MFWG: adding panel kinematic
 %
 %
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
@@ -20,7 +21,7 @@ function [handles] = setSettingsToGUI(structure, handles, bool_settings)
 
 
 path = handles.paths;
-% reset those fields of struct path which are valid for settings AND 
+% reset those fields of struct path which are valid for settings AND
 % parameter files, saved into handles at the end of this function
 path.navMULTI_1  = '';    path.navMULTI_2 = '';
 path.navGPS_1    = '';    path.navGPS_2   = '';
@@ -49,16 +50,16 @@ path.rinex_date  = '/0000/000/';
 %% File - Set input files
 
 if bool_settings        % do this only for the settings structure
-    
+
     % initialize those fields of struct path which are valid ONLY for
     % settings files
     path.obs_1       = '';    path.obs_2      = '';
     path.rinex_date = handles.paths.rinex_date;
-    
+
     % observation file
     [path.obs_1, path.obs_2] = fileparts2(structure.INPUT.file_obs);
     set(handles.edit_obs, 'String', path.obs_2);
-    
+
     if isempty(get(handles.edit_obs,'String'))   % enable/disable Download button
         set(handles.pushbutton_download,'Enable','Off');
     else
@@ -69,14 +70,14 @@ if bool_settings        % do this only for the settings structure
     set(handles.edit_x, 'String', num2str(structure.INPUT.pos_approx(1)) );
     set(handles.edit_y, 'String', num2str(structure.INPUT.pos_approx(2)) );
     set(handles.edit_z, 'String', num2str(structure.INPUT.pos_approx(3)) );
-    
+
     % settings for real-time processing
     set(handles.checkbox_realtime,  'Value', structure.INPUT.bool_realtime);
     try
         set(handles.edit_RT_from, 'String', structure.INPUT.realtime_start_GUI);
         set(handles.edit_RT_to, 'String', structure.INPUT.realtime_ende_GUI);
     end
-    
+
     % checkboxes GPS, GLONASS, GALILEO, BEIDOU, QZSS
     set(handles.checkbox_GPS, 'Enable', structure.INPUT.able_GPS);
     set(handles.checkbox_GLO, 'Enable', structure.INPUT.able_GLO);
@@ -93,7 +94,7 @@ if bool_settings        % do this only for the settings structure
         set(handles.checkbox_QZSS, 'Enable', 'off');
         set(handles.checkbox_QZSS, 'Value', 0);
     end
-    
+
     % set frequencies which should be processed
     if structure.INPUT.use_GPS      % GPS
         set(handles.popupmenu_gps_1, 'Enable', 'On');
@@ -137,11 +138,11 @@ if bool_settings        % do this only for the settings structure
         set(handles.popupmenu_qzss_2, 'Value', structure.INPUT.qzss_freq_idx(2));
         set(handles.popupmenu_qzss_3, 'Value', structure.INPUT.qzss_freq_idx(3));
     catch
-            set(handles.popupmenu_qzss_1, 'Enable', 'Off');
-            set(handles.popupmenu_qzss_2, 'Enable', 'Off');
-            set(handles.popupmenu_qzss_3, 'Enable', 'Off');
+        set(handles.popupmenu_qzss_1, 'Enable', 'Off');
+        set(handles.popupmenu_qzss_2, 'Enable', 'Off');
+        set(handles.popupmenu_qzss_3, 'Enable', 'Off');
     end
-    
+
     % Observation Ranking
     set(handles.text_rank, 'Enable', 'On');
     set(handles.edit_gps_rank, 'Enable', 'On');
@@ -154,14 +155,14 @@ if bool_settings        % do this only for the settings structure
     set(handles.edit_gal_rank, 'String', structure.INPUT.gal_ranking);
     set(handles.edit_bds_rank, 'String', structure.INPUT.bds_ranking);
     try
-    set(handles.edit_qzss_rank, 'String', structure.INPUT.qzss_ranking);
+        set(handles.edit_qzss_rank, 'String', structure.INPUT.qzss_ranking);
     end
-    
+
     % subfolder for input data files
     try
         path.rinex_date = structure.INPUT.subfolder;
     end
-    
+
 end
 
 
@@ -177,7 +178,7 @@ else
     set(handles.radiobutton_brdc_corr,'Value',1)
     able_prec_prod(handles, 'off')
     able_brdc_corr(handles, 'on')
-    
+
     if structure.ORBCLK.bool_nav_multi          % multi-gnss navigation file
         set(handles.radiobutton_multi_nav,'Value',1)
         set(handles.radiobutton_single_nav,'Value',0)
@@ -227,7 +228,7 @@ if strcmpi(structure.ORBCLK.prec_prod,'manually')
     set(handles.pushbutton_clock,'Visible','on');
     set(handles.text_obx,'Visible','on');
     set(handles.edit_obx,'Visible','on');
-    set(handles.pushbutton_obx,'Visible','on');	
+    set(handles.pushbutton_obx,'Visible','on');
     [path.sp3_1, path.sp3_2] = fileparts2(structure.ORBCLK.file_sp3);
     set(handles.edit_sp3, 'String', path.sp3_2);
     [path.clk_1, path.clk_2] = fileparts2(structure.ORBCLK.file_clk);
@@ -243,7 +244,7 @@ else
     set(handles.text_clock,'Visible','off');
     set(handles.edit_clock,'Visible','off');
     set(handles.pushbutton_clock,'Visible','off');
-	set(handles.text_obx,'Visible','off');
+    set(handles.text_obx,'Visible','off');
     set(handles.edit_obx,'Visible','off');
     set(handles.pushbutton_obx,'Visible','off');
 end
@@ -330,7 +331,7 @@ end
 
 switch structure.TROPO.mfh
     case 'VMF3'
-        set(handles.radiobutton_models_troposphere_mfh_VMF3, 'Value', 1);    
+        set(handles.radiobutton_models_troposphere_mfh_VMF3, 'Value', 1);
     case 'VMF1'
         set(handles.radiobutton_models_troposphere_mfh_VMF1, 'Value', 1);
     case 'GPT3'
@@ -433,12 +434,12 @@ switch structure.IONO.model
         set(handles.radiobutton_models_ionosphere_estimateConstraint,   'Value', 1);
     case 'Correct with ...'
         set(handles.radiobutton_models_ionosphere_correct,    	'Value', 1);
-	case 'Estimate'
+    case 'Estimate'
         set(handles.radiobutton_models_ionosphere_estimate,  	'Value', 1);
     case 'Estimate, decoupled clock'
         set(handles.radiobutton_models_ionosphere_decoupled, 	'Value', 1);
     case 'GRAPHIC'
-        set(handles.radiobutton_models_ionosphere_graphic,  	'Value', 1);        
+        set(handles.radiobutton_models_ionosphere_graphic,  	'Value', 1);
     case 'off'
         set(handles.radiobutton_models_ionosphere_off,        	'Value', 1);
 end
@@ -453,11 +454,11 @@ switch structure.IONO.source
     case 'CODE spherical harmonics'
         set(handles.radiobutton_source_ionosphere_CODE,            'Value', 1);
     case 'VTEC from Correction Stream'
-        set(handles.radiobutton_model_ionosphere_CorrectionStream, 'Value', 1);  
+        set(handles.radiobutton_model_ionosphere_CorrectionStream, 'Value', 1);
     case 'TOBS File'
-        set(handles.radiobutton_model_ionosphere_TOBS,             'Value', 1);   
+        set(handles.radiobutton_model_ionosphere_TOBS,             'Value', 1);
     case 'NTCM-G'
-        set(handles.radiobutton_model_ionosphere_NTCMG,            'Value', 1);        
+        set(handles.radiobutton_model_ionosphere_NTCMG,            'Value', 1);
 end
 % Constraint until defined epoch
 try
@@ -468,15 +469,15 @@ try
     handles.edit_constraint_decrease.String = num2str(sqrt(structure.IONO.var_iono_decr));
 end
 % IONEX File Type (final, rapid, rapid high-rate)
-try 
-   switch structure.IONO.type_ionex
-       case 'final'
-           set(handles.radiobutton_ionex_final, 'Value', 1);
-       case 'rapid'
-           set(handles.radiobutton_ionex_rapid, 'Value', 1);
-       case 'rapid highrate'
-           set(handles.radiobutton_ionex_rapid_highrate, 'Value', 1);
-   end
+try
+    switch structure.IONO.type_ionex
+        case 'final'
+            set(handles.radiobutton_ionex_final, 'Value', 1);
+        case 'rapid'
+            set(handles.radiobutton_ionex_rapid, 'Value', 1);
+        case 'rapid highrate'
+            set(handles.radiobutton_ionex_rapid_highrate, 'Value', 1);
+    end
 end
 % Source of IONEX File
 switch structure.IONO.model_ionex
@@ -490,7 +491,7 @@ switch structure.IONO.model_ionex
         set(handles.edit_iono_autodetect, 'String', structure.IONO.autodetection);
         set(handles.radiobutton_iono_folder_auto,'Value',   structure.IONO.folder_auto);
         set(handles.radiobutton_iono_folder_manual,'Value', structure.IONO.folder_manual);
-        set(handles.edit_iono_folder, 'String', structure.IONO.folder);        
+        set(handles.edit_iono_folder, 'String', structure.IONO.folder);
     case 'manually'
         set(handles.radiobutton_models_ionosphere_ionex_manually,   'Value', 1);
         % Ionex file path
@@ -517,15 +518,15 @@ try
         case 'CAS Multi-GNSS DCBs'
             handles.radiobutton_models_biases_code_CAS.Value = 1;
         case 'CAS Multi-GNSS OSBs'
-            handles.radiobutton_models_biases_code_CAS_osb.Value = 1;            
+            handles.radiobutton_models_biases_code_CAS_osb.Value = 1;
         case 'DLR Multi-GNSS DCBs'
             handles.radiobutton_models_biases_code_DLR.Value = 1;
         case 'CODE DCBs (P1P2, P1C1, P2C2)'
-            handles.radiobutton_models_biases_code_CODE.Value = 1;           
+            handles.radiobutton_models_biases_code_CODE.Value = 1;
         case 'CODE OSBs'
             handles.radiobutton_models_biases_code_CODE_OSB.Value = 1;
         case 'CNES OSBs'
-            handles.radiobutton_models_biases_code_CNES_OSB.Value = 1;        
+            handles.radiobutton_models_biases_code_CNES_OSB.Value = 1;
         case 'CODE MGEX'
             handles.radiobutton_models_biases_code_CODE_IAR.Value = 1;
         case 'CNES MGEX'
@@ -533,22 +534,22 @@ try
         case 'WUM OSBs'
             handles.radiobutton_models_biases_code_WUM_MGEX.Value = 1;
         case 'WUM MGEX'
-            handles.radiobutton_models_biases_code_WUM_MGEX.Value = 1;             
+            handles.radiobutton_models_biases_code_WUM_MGEX.Value = 1;
         case 'GFZ MGEX'
             handles.radiobutton_models_biases_code_GFZ_MGEX.Value = 1;
         case {'HUST MGEX', 'HUS MGEX'}
             handles.radiobutton_models_biases_code_HUST_MGEX.Value = 1;
         case 'CNES postprocessed'
-            handles.radiobutton_models_biases_code_CNES_post.Value = 1;            
+            handles.radiobutton_models_biases_code_CNES_post.Value = 1;
         case 'Correction Stream'
             handles.radiobutton_models_biases_code_CorrectionStream.Value = 1;
         case 'Broadcasted TGD'
-            handles.radiobutton_brdc_tgd .Value = 1;            
+            handles.radiobutton_brdc_tgd .Value = 1;
         case 'manually'
             handles.radiobutton_models_biases_code_manually.Value = 1;
         case 'off'
             handles.radiobutton_models_biases_code_off.Value = 1;
-        otherwise 
+        otherwise
             errordlg('Loading of code biases failed.', 'Error');
     end
     if strcmp(structure.BIASES.code, 'manually')
@@ -635,29 +636,29 @@ end
 set(handles.checkbox_solid_tides, 'Value', structure.OTHER.bool_solid_tides);
 set(handles.checkbox_wind_up,     'Value', structure.OTHER.bool_wind_up);
 try
-    set(handles.checkbox_shapiro, 'Value', structure.OTHER.shapiro); 
+    set(handles.checkbox_shapiro, 'Value', structure.OTHER.shapiro);
 catch
-    set(handles.checkbox_shapiro, 'Value', 0); 
+    set(handles.checkbox_shapiro, 'Value', 0);
 end
 try
-    set(handles.checkbox_GDV,     'Value', structure.OTHER.bool_GDV); 
+    set(handles.checkbox_GDV,     'Value', structure.OTHER.bool_GDV);
 catch
-    set(handles.checkbox_GDV,     'Value', 0); 
+    set(handles.checkbox_GDV,     'Value', 0);
 end
 try
-    set(handles.checkbox_ocean_loading,     'Value', structure.OTHER.ocean_loading ); 
+    set(handles.checkbox_ocean_loading,     'Value', structure.OTHER.ocean_loading );
 catch
-    set(handles.checkbox_ocean_loading,     'Value', 0); 
+    set(handles.checkbox_ocean_loading,     'Value', 0);
 end
 try
-    set(handles.checkbox_polar_tides,     'Value', structure.OTHER.polar_tides); 
+    set(handles.checkbox_polar_tides,     'Value', structure.OTHER.polar_tides);
 catch
-    set(handles.checkbox_polar_tides,     'Value', 0); 
+    set(handles.checkbox_polar_tides,     'Value', 0);
 end
 try
-    set(handles.checkbox_eclipse,           'Value', structure.OTHER.bool_eclipse ); 
+    set(handles.checkbox_eclipse,           'Value', structure.OTHER.bool_eclipse );
 catch
-    set(handles.checkbox_eclipse,           'Value', 1); 
+    set(handles.checkbox_eclipse,           'Value', 1);
 end
 
 % Antex File
@@ -696,24 +697,24 @@ set(handles.edit_CycleSlip_Doppler_threshold, 'String', num2str(structure.OTHER.
 
 % cycle-slip detection time difference
 try
-set(handles.checkbox_cs_td, 'Value', structure.OTHER.CS.TimeDifference); 
-set(handles.edit_cs_td_thresh, 'String', num2str(structure.OTHER.CS.TD_threshold));
-set(handles.edit_cs_td_degree, 'String', num2str(structure.OTHER.CS.TD_degree));
+    set(handles.checkbox_cs_td, 'Value', structure.OTHER.CS.TimeDifference);
+    set(handles.edit_cs_td_thresh, 'String', num2str(structure.OTHER.CS.TD_threshold));
+    set(handles.edit_cs_td_degree, 'String', num2str(structure.OTHER.CS.TD_degree));
 end
 
 % cycle-slip detection HMW LC
 try
-set(handles.checkbox_cs_HMW, 'Value', structure.OTHER.CS.HMW); 
-set(handles.edit_cs_HMW_thresh, 'String', num2str(structure.OTHER.CS.HMW_threshold));
-set(handles.edit_cs_HMW_factor, 'String', num2str(structure.OTHER.CS.HMW_factor));
+    set(handles.checkbox_cs_HMW, 'Value', structure.OTHER.CS.HMW);
+    set(handles.edit_cs_HMW_thresh, 'String', num2str(structure.OTHER.CS.HMW_threshold));
+    set(handles.edit_cs_HMW_factor, 'String', num2str(structure.OTHER.CS.HMW_factor));
 end
 
 % multipath detection
 try
-set(handles.checkbox_mp_detection, 'Value', structure.OTHER.mp_detection);
-set(handles.edit_mp_degree, 'String', num2str((structure.OTHER.mp_degree)));
-set(handles.edit_mp_thresh, 'String', num2str(structure.OTHER.mp_thresh ));
-set(handles.edit_mp_cooldown, 'String', num2str(structure.OTHER.mp_cooldown));         
+    set(handles.checkbox_mp_detection, 'Value', structure.OTHER.mp_detection);
+    set(handles.edit_mp_degree, 'String', num2str((structure.OTHER.mp_degree)));
+    set(handles.edit_mp_thresh, 'String', num2str(structure.OTHER.mp_thresh ));
+    set(handles.edit_mp_cooldown, 'String', num2str(structure.OTHER.mp_cooldown));
 end
 
 % Loss of Lock Index ||| delete try/catch at some later point
@@ -724,16 +725,98 @@ catch
 end
 
 
+%% Model - Kinematic
+
+% kinematic scenario
+try
+    set(handles.checkbox_kinematic,  'Value', structure.KINE.bool_kinematic);
+catch
+    try
+        set(handles.checkbox_kinematic,  'Value', structure.INPUT.bool_kinematic);
+    catch
+        set(handles.checkbox_kinematic,  'Value', 0);
+    end
+end
+
+% Offsets
+try
+    set(handles.checkbox_offsets,  'Value', structure.KINE.bool_offset);
+    set(handles.edit_offset_x,  'String', num2str(structure.KINE.offset(1), '%.4f'));
+    set(handles.edit_offset_y,  'String', num2str(structure.KINE.offset(2), '%.4f'));
+    set(handles.edit_offset_z,  'String', num2str(structure.KINE.offset(3), '%.4f'));
+catch
+    set(handles.checkbox_offsets,  'Value', 0);
+    set(handles.edit_offset_x,  'String', '0.0000');
+    set(handles.edit_offset_y,  'String', '0.0000');
+    set(handles.edit_offset_z,  'String', '0.0000');
+end
+
+% Satellite
+try
+    set(handles.checkbox_satellite, 'Value', structure.KINE.satellite.bool);
+    set(handles.edit_sat_mass, 'String', num2str(structure.KINE.satellite.mass));
+    set(handles.edit_sat_area, 'String', num2str(structure.KINE.satellite.area));
+    set(handles.edit_sat_drag, 'String', num2str(structure.KINE.satellite.drag));
+    set(handles.edit_sat_solar, 'String', num2str(structure.KINE.satellite.solar));
+    set(handles.edit_sat_id,    'String', num2str(structure.KINE.satellite.ID));
+catch
+
+    try
+        set(handles.checkbox_satellite, 'Value', structure.ADJ.satellite.bool);
+        set(handles.edit_sat_mass, 'String', num2str(structure.ADJ.satellite.mass));
+        set(handles.edit_sat_area, 'String', num2str(structure.ADJ.satellite.area));
+        set(handles.edit_sat_drag, 'String', num2str(structure.ADJ.satellite.drag));
+        set(handles.edit_sat_solar, 'String', num2str(structure.ADJ.satellite.solar));
+        try
+            set(handles.edit_sat_id,    'String', num2str(structure.ADJ.satellite.ID));
+        end
+
+    catch
+        set(handles.checkbox_satellite, 'Value', 0 );
+    end
+end
+
+% Orientation Mode
+try
+    switch structure.KINE.orient_mode
+        case 'vertical'
+            handles.radiobutton_or_vertical.Value = 1;
+        case 'radial'
+            handles.radiobutton_or_radial.Value = 1;
+        case 'Yaw-Steering'
+            handles.radiobutton_or_yaw.Value = 1;
+        case 'Earth-Pointing'
+            handles.radiobutton_or_earth.Value = 1;
+        case 'ORBEX'
+            handles.radiobutton_or_orbex.Value = 1;
+    end
+catch
+    try
+    switch structure.ADJ.satellite.orient_mode
+        case 'Yaw-Steering'
+            handles.radiobutton_or_yaw.Value = 1;
+        case 'Earth-Pointing'
+            handles.radiobutton_or_earth.Value = 1;
+        case 'ORBEX'
+            handles.radiobutton_or_orbex.Value = 1;
+    end
+    catch
+    end
+
+end
+
+
+
 %% Estimation - Ambiguity fixing
 
 set(handles.checkbox_fixing, 'Value', structure.AMBFIX.bool_AMBFIX);
 % start of fixings
-try 
+try
     set(handles.edit_start_WL, 'String', num2str(structure.AMBFIX.start_WL_sec));
-    set(handles.edit_start_NL, 'String', num2str(structure.AMBFIX.start_NL_sec)); 
+    set(handles.edit_start_NL, 'String', num2str(structure.AMBFIX.start_NL_sec));
 catch       % old settings-file, before change from minutes to seconds
     set(handles.edit_start_WL, 'String', num2str(structure.AMBFIX.start_WL_min*60));
-    set(handles.edit_start_NL, 'String', num2str(structure.AMBFIX.start_NL_min*60)); 
+    set(handles.edit_start_NL, 'String', num2str(structure.AMBFIX.start_NL_min*60));
 end
 % cutoff of fixing
 try
@@ -743,7 +826,7 @@ catch       % old settings file
 end
 % detection of wrong fixes
 try
-    switch structure.AMBFIX.wrongFixes 
+    switch structure.AMBFIX.wrongFixes
         case 'Difference to float solution'
             handles.radiobutton_wrongFixes_diff.Value = 1;
         case 'vTPv'
@@ -761,14 +844,14 @@ switch structure.AMBFIX.refSatChoice
     case 'Highest satellite'
         set(handles.radiobutton_refSat_high, 'Value', 1);
     case 'Most central satellite'
-        set(handles.radiobutton_refSat_central, 'Value', 1);        
+        set(handles.radiobutton_refSat_central, 'Value', 1);
     case '???'
         set(handles.radiobutton_refSat, 'Value', 1);
-    case 'manual choice (list):'      
+    case 'manual choice (list):'
         set(handles.radiobutton_refSat_manually, 'Value', 1);
 end
 % list of manual reference satellites
-set(handles.edit_refSatGPS, 'String', num2str(structure.AMBFIX.refSatGPS)); 
+set(handles.edit_refSatGPS, 'String', num2str(structure.AMBFIX.refSatGPS));
 set(handles.edit_refSatGAL, 'String', num2str(structure.AMBFIX.refSatGAL));
 try
     set(handles.edit_refSatGLO, 'String', num2str(structure.AMBFIX.refSatGLO));
@@ -800,32 +883,6 @@ set(handles.popupmenu_filter, 'Value', value);
 % Filter settings
 [handles] = setFilterSettingsToGUI(structure, handles);
 
-% Satellite
-try
-    set(handles.checkbox_satellite, 'Value', structure.ADJ.satellite.bool);
-    set(handles.edit_sat_mass, 'String', num2str(structure.ADJ.satellite.mass));
-    set(handles.edit_sat_area, 'String', num2str(structure.ADJ.satellite.area));
-    set(handles.edit_sat_drag, 'String', num2str(structure.ADJ.satellite.drag));
-    set(handles.edit_sat_solar, 'String', num2str(structure.ADJ.satellite.solar));
-    set(handles.edit_sat_id,    'String', num2str(structure.ADJ.satellite.ID));
-
-    try
-        switch structure.ADJ.satellite.orient_mode
-            case 'Yaw-Steering'
-                handles.radiobutton_or_yaw.Value = 1;
-            case 'Earth-Pointing'
-                handles.radiobutton_or_earth.Value = 1;
-            case 'ORBEX'
-                handles.radiobutton_or_orbex.Value = 1;
-        end
-    end
-
-
-
-
-catch
-    set(handles.checkbox_satellite, 'Value', 0 );
-end
 
 
 %% Estimation - Weighting
@@ -836,7 +893,7 @@ set(handles.radiobutton_Elevation_Dependency,       'Value', structure.ADJ.weigh
 try     % write elevation weighting function to text-field
     try
         set(handles.edit_elevation_weighting_function,  'String', structure.ADJ.elev_weight_fun);
-    end    
+    end
     set(handles.edit_elevation_weighting_function,  'String', strrep(func2str(structure.ADJ.elev_weight_fun), '@(e)', ''));
 end
 set(handles.radiobutton_Signal_Strength_Dependency, 'Value', structure.ADJ.weight_sign_str );
@@ -866,15 +923,20 @@ catch
     set(handles.edit_weight_BDS, 'String', sprintf('%.2f', 1));
 end
 try
-	set(handles.edit_weight_QZSS,'String', sprintf('%.2f', structure.ADJ.fac_QZSS)); 
+    set(handles.edit_weight_QZSS,'String', sprintf('%.2f', structure.ADJ.fac_QZSS));
 catch
-	set(handles.edit_weight_QZSS,'String', sprintf('%.2f', 1));
+    set(handles.edit_weight_QZSS,'String', sprintf('%.2f', 1));
 end
 
 % Std Code and Phase and Ionosphere
 set(handles.edit_Std_CA_Code, 'String', sprintf('%.3f', sqrt(structure.ADJ.var_code))  );
 set(handles.edit_Std_Phase,   'String', sprintf('%.3f', sqrt(structure.ADJ.var_phase)) );
 set(handles.edit_Std_Iono,    'String', sprintf('%.3f', sqrt(structure.ADJ.var_iono))  );
+try
+    set(handles.edit_Std_Doppler,'String', sprintf('%.3f', sqrt(structure.ADJ.var_doppler))  );
+catch
+    set(handles.edit_Std_Doppler,'String', sprintf('%.3f', 1)  );
+end
 
 % frequency-specific standard-devations, boolean
 try
@@ -928,7 +990,7 @@ try
     set(handles.edit_omc_thresh_c, 'String', num2str(structure.PROC.omc_code_thresh));
 end
 try
-    set(handles.edit_omc_thresh_p, 'String', num2str(structure.PROC.omc_phase_thresh)); 
+    set(handles.edit_omc_thresh_p, 'String', num2str(structure.PROC.omc_phase_thresh));
 end
 try
     set(handles.edit_omc_fac, 'String', num2str(structure.PROC.omc_factor));
@@ -936,7 +998,7 @@ end
 try
     set(handles.edit_omc_window, 'String', num2str(structure.PROC.omc_window));
 end
-try     
+try
     handles.checkbox_check_omc.Value = structure.PROC.check_omc;
 end
 
@@ -958,26 +1020,26 @@ if bool_settings == 1   % do this only for the settings structure
     set(handles.edit_reset_epoch,     'String', num2str(structure.PROC.reset_after));
     set(handles.radiobutton_reset_epoch, 'Value', structure.PROC.reset_bool_epoch);
     set(handles.radiobutton_reset_min,   'Value', structure.PROC.reset_bool_min);
-    
-    
+
+
     try         % processing name from GUI first (with pseudocode)
         set(handles.edit_output, 'String', structure.PROC.name_GUI);
     catch       % otherwise use just the processing name (pseudocode replaced)
         set(handles.edit_output, 'String', structure.PROC.name);
     end
-    
+
     set(handles.edit_timeFrame_from, 'String', structure.PROC.timeFrameFrom);
     set(handles.edit_timeFrame_to, 'String', structure.PROC.timeFrameTo);
-    
+
     % type of defined time span
     set(handles.radiobutton_timeSpan_format_epochs, 'Value', structure.PROC.timeSpan_format_epochs);
     try set(handles.radiobutton_timeSpan_format_time,   'Value', structure.PROC.timeSpan_format_time); catch; end
     set(handles.radiobutton_timeSpan_format_SOD,    'Value', structure.PROC.timeSpan_format_SOD);
     set(handles.radiobutton_timeSpan_format_HOD,    'Value', structure.PROC.timeSpan_format_HOD);
-       
+
     % write exclusion of satellites
     handles.uitable_exclude.Data = structure.PROC.exclude(:,1:3);
-    
+
     % write exclusion of epochs
     handles.uitable_excl_epochs.Data = structure.PROC.exclude_epochs(:,1:3);
 end
@@ -991,15 +1053,20 @@ end
 try         % ||| remove at some point
     % output
     handles.checkbox_exp_data4plot.Value         = structure.EXP.data4plot;
-	try
-		handles.checkbox_exp_results_txt.Value     = structure.EXP.results_txt;
-	catch
-		handles.checkbox_exp_results_txt.Value     = structure.EXP.results_float;
-	end
-	try
-		handles.checkbox_exp_results_csv.Value     = structure.EXP.results_csv;
-	catch
-		handles.checkbox_exp_results_csv.Value     = 0;
+    try
+        handles.checkbox_exp_results_txt.Value     = structure.EXP.results_txt;
+    catch
+        handles.checkbox_exp_results_txt.Value     = structure.EXP.results_float;
+    end
+    try
+        handles.checkbox_exp_results_csv.Value     = structure.EXP.results_csv;
+    catch
+        handles.checkbox_exp_results_csv.Value     = 0;
+    end
+    try
+        handles.checkbox_exp_results_csv_utc.Value = structure.EXP.bool_csv_utc;
+    catch
+        handles.checkbox_exp_results_csv_utc.Value = 0;
     end
 
     try
@@ -1033,7 +1100,7 @@ try         % ||| remove at some point
     catch
         handles.checkbox_exp_storeData_sat_status.Value = 0;
     end
-    
+
     % Variable satellites
     try
         handles.checkbox_exp_satellites.Value    = structure.EXP.satellites;
@@ -1044,7 +1111,7 @@ try         % ||| remove at some point
         handles.checkbox_exp_satellites_D.Value    = structure.EXP.satellites_D;
     catch
         handles.checkbox_exp_satellites_D.Value    = 0;
-    end    
+    end
     try         % ||| remove at some point
         handles.checkbox_exp_nmea.Value = structure.EXP.nmea;
         handles.checkbox_exp_kml.Value  = structure.EXP.kml;
@@ -1056,70 +1123,75 @@ end
 
 if bool_settings == 1   % do this only for the settings structure
 
-	% which solution should be plotted?
-	set(handles.radiobutton_plot_float,         'Value', structure.PLOT.float);
-	set(handles.radiobutton_plot_fixed,         'Value', structure.PLOT.fixed);
-	
-	% which plots should be opened?
+    % which solution should be plotted?
+    set(handles.radiobutton_plot_float,         'Value', structure.PLOT.float);
+    set(handles.radiobutton_plot_fixed,         'Value', structure.PLOT.fixed);
+
+    % which plots should be opened?
     set(handles.checkbox_plot_coordinate,       'Value', structure.PLOT.coordinate    );
     try
         set(handles.checkbox_plot_googlemaps,       'Value', structure.PLOT.map       	  );
     catch
         % old version
     end
-	try
+    try
         set(handles.checkbox_plot_UTM,       'Value', structure.PLOT.UTM       	  );
     catch
         % old version
     end
     set(handles.checkbox_plot_xyz,              'Value', structure.PLOT.coordxyz      );
-	try
+    try
         set(handles.checkbox_plot_xyzplot,      'Value', structure.PLOT.XYZ       	  );
     catch
         % old version
-    end	
-	set(handles.checkbox_plot_elev,             'Value', structure.PLOT.elevation     );
-	set(handles.checkbox_plot_sat_visibility,   'Value', structure.PLOT.satvisibility );
-	try; set(handles.checkbox_plot_amb,        'Value', structure.PLOT.amb     ); end
-%	set(handles.checkbox_plot_fixed_amb,        'Value', structure.PLOT.fixed_amb     );
-	try
-		set(handles.checkbox_plot_clock,            'Value', structure.PLOT.clock     );
-	catch
-		set(handles.checkbox_plot_clock,            'Value', structure.PLOT.clock_dcb     );
-	end
-	try
-	set(handles.checkbox_plot_dcb,           	'Value', structure.PLOT.dcb     	  );
-	end
-	set(handles.checkbox_plot_wet_tropo,        'Value', structure.PLOT.wet_tropo     );
-	set(handles.checkbox_plot_cov_info,         'Value', structure.PLOT.cov_info      );
-	set(handles.checkbox_plot_cov_amb,          'Value', structure.PLOT.cov_amb       );
-	set(handles.checkbox_plot_corr,             'Value', structure.PLOT.corr          );
-	set(handles.checkbox_plot_skyplot,          'Value', structure.PLOT.skyplot       );
+    end
+    try
+        set(handles.checkbox_plot_velocity,     'Value', structure.PLOT.velocity   	  );
+    catch
+        % old version
+    end
+    set(handles.checkbox_plot_elev,             'Value', structure.PLOT.elevation     );
+    set(handles.checkbox_plot_sat_visibility,   'Value', structure.PLOT.satvisibility );
+    try; set(handles.checkbox_plot_amb,        'Value', structure.PLOT.amb     ); end
+    %	set(handles.checkbox_plot_fixed_amb,        'Value', structure.PLOT.fixed_amb     );
+    try
+        set(handles.checkbox_plot_clock,            'Value', structure.PLOT.clock     );
+    catch
+        set(handles.checkbox_plot_clock,            'Value', structure.PLOT.clock_dcb     );
+    end
+    try
+    	set(handles.checkbox_plot_dcb,           	'Value', structure.PLOT.dcb     	  );
+    end
+    set(handles.checkbox_plot_wet_tropo,        'Value', structure.PLOT.wet_tropo     );
+    set(handles.checkbox_plot_cov_info,         'Value', structure.PLOT.cov_info      );
+    set(handles.checkbox_plot_cov_amb,          'Value', structure.PLOT.cov_amb       );
+    set(handles.checkbox_plot_corr,             'Value', structure.PLOT.corr          );
+    set(handles.checkbox_plot_skyplot,          'Value', structure.PLOT.skyplot       );
     set(handles.checkbox_plot_residuals,        'Value', structure.PLOT.residuals     );
     set(handles.checkbox_plot_DOP,              'Value', structure.PLOT.DOP           );
-	try
-		set(handles.checkbox_plot_mplc,         'Value', structure.PLOT.MPLC          );
-	end
-	set(handles.checkbox_plot_iono,             'Value', structure.PLOT.iono          );
-	set(handles.checkbox_plot_cs,               'Value', structure.PLOT.cs            );
-	try
-	set(handles.checkbox_plot_mp,               'Value', structure.PLOT.mp            );
+    try
+        set(handles.checkbox_plot_mplc,         'Value', structure.PLOT.MPLC          );
     end
-	set(handles.checkbox_plot_appl_biases,     	'Value', structure.PLOT.appl_biases	  );	
-	set(handles.checkbox_plot_signal_qual,      'Value', structure.PLOT.signal_qual   );
-	set(handles.checkbox_plot_res_sats,         'Value', structure.PLOT.res_sats      );
-	set(handles.checkbox_plot_stream_corr,      'Value', structure.PLOT.res_sats      );
+    set(handles.checkbox_plot_iono,             'Value', structure.PLOT.iono          );
+    set(handles.checkbox_plot_cs,               'Value', structure.PLOT.cs            );
+    try
+    	set(handles.checkbox_plot_mp,               'Value', structure.PLOT.mp            );
+    end
+    set(handles.checkbox_plot_appl_biases,     	'Value', structure.PLOT.appl_biases	  );
+    set(handles.checkbox_plot_signal_qual,      'Value', structure.PLOT.signal_qual   );
+    set(handles.checkbox_plot_res_sats,         'Value', structure.PLOT.res_sats      );
+    set(handles.checkbox_plot_stream_corr,      'Value', structure.PLOT.res_sats      );
 
-%     % true position for single plot
-%     if any(nonzeros(structure.INPUT.pos_approx-structure.PLOT.pos_true))
-%         set(handles.edit_x_true, 'String', num2str(structure.PLOT.pos_true(1)) );
-%         set(handles.edit_y_true, 'String', num2str(structure.PLOT.pos_true(2)) );
-%         set(handles.edit_z_true, 'String', num2str(structure.PLOT.pos_true(3)) );
-%     else
-%         set(handles.edit_x_true, 'String', '' );
-%         set(handles.edit_y_true, 'String', '' );
-%         set(handles.edit_z_true, 'String', '' );
-%     end
+    %     % true position for single plot
+    %     if any(nonzeros(structure.INPUT.pos_approx-structure.PLOT.pos_true))
+    %         set(handles.edit_x_true, 'String', num2str(structure.PLOT.pos_true(1)) );
+    %         set(handles.edit_y_true, 'String', num2str(structure.PLOT.pos_true(2)) );
+    %         set(handles.edit_z_true, 'String', num2str(structure.PLOT.pos_true(3)) );
+    %     else
+    %         set(handles.edit_x_true, 'String', '' );
+    %         set(handles.edit_y_true, 'String', '' );
+    %         set(handles.edit_z_true, 'String', '' );
+    %     end
 
 end
 
@@ -1154,7 +1226,7 @@ file = file';               % necessary
 lastletter = file(end);     % necessary
 if strcmp(lastletter, '/')
     file = file(1:end-1);
-end    
+end
 % --- end of modifications   ---
 
 pathstr = '';
@@ -1180,7 +1252,7 @@ if ispc
     ind = find(file == '/'|file == '\', 1, 'last');
     if isempty(ind)
         ind = find(file == ':', 1, 'last');
-        if ~isempty(ind)       
+        if ~isempty(ind)
             pathstr = file(1:ind);
         end
     else
@@ -1188,16 +1260,16 @@ if ispc
             %special case for UNC server
             pathstr =  file;
             ind = length(file);
-        else 
+        else
             pathstr = file(1:ind-1);
         end
     end
-    if isempty(ind)       
+    if isempty(ind)
         name = file;
     else
         if ~isempty(pathstr) && pathstr(end)==':' && ...
                 (length(pathstr)>2 || (length(file) >=3 && file(3) == '\'))
-                %don't append to D: like which is volume path on windows
+            %don't append to D: like which is volume path on windows
             pathstr = [pathstr '\'];
         elseif isempty(deblank(pathstr))
             pathstr = '\';
@@ -1209,7 +1281,7 @@ else    % UNIX
     if isempty(ind)
         name = file;
     else
-        pathstr = file(1:ind-1); 
+        pathstr = file(1:ind-1);
 
         % Do not forget to add filesep when in the root filesystem
         if isempty(deblank(pathstr))
@@ -1222,7 +1294,7 @@ end
 if ~isempty(name)
     % Look for EXTENSION part
     ind = find(name == '.', 1, 'last');
-    
+
     if ~isempty(ind)
         ext = name(ind:end);
         name(ind:end) = [];

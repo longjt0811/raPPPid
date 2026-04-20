@@ -1,4 +1,4 @@
-function vis_plotResiduals(epochs, resets, hours, x_label, Code_res, Phase_res, prns, txtcell, Elev, cutoff, rgb)
+function vis_plotResiduals(epochs, resets, hours, x_label, Code_res, Phase_res, Doppler_res, prns, txtcell, Elev, cutoff, rgb)
 % creates Residuals Plot
 % INPUT:
 %   epochs          vector, processed epochs
@@ -7,6 +7,7 @@ function vis_plotResiduals(epochs, resets, hours, x_label, Code_res, Phase_res, 
 %   x_label         string, label for x-axis
 %   Code_res        matrix, residuals, sats x epochs x freq
 %   Phase_res       matrix, phase residuals, sats x epochs x freq
+%   Doppler         matrix, Doppler residuals, sats x epochs x freq
 %   prns            observed prns
 %   txtcell         cell, strings for GNSS, GNSS-letter and solution
 %   Elev            matrix, satellite elevations, epochs x satellites
@@ -39,7 +40,12 @@ Code_res(Code_res==0)   = NaN;
 if ~isempty(Phase_res)
     Phase_res = Phase_res(epochs, :, :);
     Phase_res(Phase_res==0) = NaN;
-    no_cols = 2;            
+    no_cols = no_cols + 1;            
+end
+if ~isempty(Doppler_res)
+    Doppler_res = Doppler_res(epochs, :, :);
+    Doppler_res(Doppler_res==0) = NaN;
+    no_cols = no_cols + 1;             
 end
 
 no_frqs = size(Code_res, 3);    % number of processed frequencies
@@ -63,7 +69,7 @@ for j = 1:no_frqs     % loop to plot all processed frequencies
     
     % --- CODE
     Code_res_j = Code_res(:,:,j);       % Code Residuals of current frequency
-    subplot(no_frqs,no_cols,i_plot);        i_plot=i_plot+1;
+    subplot(no_cols,no_frqs,i_plot);        i_plot=i_plot+1;
     hold on 
     plot(Elev(:,prns), Code_res_j(:,prns), '.', 'MarkerSize', ms);
     % style code residuals plot over elevation
@@ -85,7 +91,7 @@ for j = 1:no_frqs     % loop to plot all processed frequencies
     % --- PHASE
     if ~isempty(Phase_res)
         Phase_res_j = Phase_res(:,:,j);    	% Phase Residuals of current frequency
-        subplot(no_frqs,no_cols,i_plot);    i_plot=i_plot+1;
+        subplot(no_cols,no_frqs,i_plot);    i_plot=i_plot+1;
         hold on
         plot(Elev(:,prns), Phase_res_j(:,prns), '.', 'MarkerSize', ms);
         % style phase residuals plot over elevation
@@ -103,6 +109,28 @@ for j = 1:no_frqs     % loop to plot all processed frequencies
         ylim([-max_p max_p])
         vline(cutoff, 'r--')
     end
+
+    % --- Doppler
+    if ~isempty(Doppler_res)
+        Doppler_res_j = Doppler_res(:,:,j);    	% Doppler Residuals of current frequency
+        subplot(no_cols,no_frqs,i_plot);    i_plot=i_plot+1;
+        hold on
+        plot(Elev(:,prns), Doppler_res_j(:,prns), '.', 'MarkerSize', ms);
+        % style Doppler residuals plot over elevation
+        hleg = legend(prns_string);
+        title(hleg, 'PRN')          % title for legend
+        legend off
+        Grid_Xoff_Yon();
+        hline(0, 'k-')          % plot x-axis
+        title({['Doppler-Residuals over Elevation, ' floatfix ', ', gnss, ', ' frequ]},'fontsize', 10);
+        ylabel('Residuals [m/s]')
+        xlabel('Elevation [°]')
+        max_p = max(abs(Doppler_res_j(:)));
+        if isnan(max_p);        max_p = 1;    end
+        xlim([-Inf 90]);
+        ylim([-max_p max_p])
+        vline(cutoff, 'r--')
+    end    
 end
 
 
@@ -123,7 +151,7 @@ for j = 1:no_frqs     % loop to plot all processed frequencies
     
     
     % --- CODE
-    subplot(no_frqs,no_cols,i_plot);        i_plot=i_plot+1;
+    subplot(no_cols,no_frqs,i_plot);        i_plot=i_plot+1;
     hold on 
     plot(hours, Code_res_j(:,prns), '.', 'MarkerSize', ms);
     % style code residuals plot over time
@@ -144,7 +172,7 @@ for j = 1:no_frqs     % loop to plot all processed frequencies
     % --- PHASE
     if ~isempty(Phase_res)
         Phase_res_j = Phase_res(:,:,j);    	% Phase Residuals of current frequency
-        subplot(no_frqs,no_cols,i_plot);        i_plot=i_plot+1;
+        subplot(no_cols,no_frqs,i_plot);        i_plot=i_plot+1;
         hold on
         plot(hours, Phase_res_j(:,prns), '.', 'MarkerSize', ms);
         % style phase residuals plot over time
@@ -162,6 +190,28 @@ for j = 1:no_frqs     % loop to plot all processed frequencies
         xlim([0, hours(end)])
         if ~isempty(resets); vline(resets, 'k:'); end	% plot vertical lines for resets
     end
+
+    % --- Doppler
+    if ~isempty(Doppler_res)
+        Doppler_res_j = Doppler_res(:,:,j);    	% Doppler Residuals of current frequency
+        subplot(no_cols,no_frqs,i_plot);        i_plot=i_plot+1;
+        hold on
+        plot(hours, Doppler_res_j(:,prns), '.', 'MarkerSize', ms);
+        % style Doppler residuals plot over time
+        hleg = legend(prns_string);
+        title(hleg, 'PRN')          % title for legend
+        legend off
+        grid on
+        hline(0, 'k-')          % plot x-axis
+        title({['Doppler-Residuals over Time, ' floatfix ', ', gnss, ', ' frequ]},'fontsize', 9);
+        ylabel('Residuals [m/s]')
+        xlabel(x_label)
+        max_p = max(abs(Doppler_res_j(:)));
+        if isnan(max_p);        max_p = 1;    end
+        ylim([-max_p max_p])
+        xlim([0, hours(end)])
+        if ~isempty(resets); vline(resets, 'k:'); end	% plot vertical lines for resets
+    end    
 end
 
 % add customized datatip

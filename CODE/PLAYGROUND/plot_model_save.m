@@ -24,7 +24,7 @@ phase_IFLC_plot      = 	false;
 satellite_clock     =   false; 
 relativistic_clock  =   false; 
 signal_runtime      =   false; 
-brdc_ephemeris      =   true; 
+brdc_ephemeris      =   false; 
 signal_emission     =   false; 
 tropo_plot          =   false; 
 ZTD_plot            =   false; 
@@ -33,7 +33,7 @@ ZWD_plot            =   false;
 iono_plot           =   false; 
 wmf_plot            =   false; 
 hmf_plot            =   false; 
-windup              =   false; 
+windup              =   true; 
 solid_tides         =   false; 
 ocean_loading       =   false;
 polar_tides         =   false;
@@ -164,7 +164,8 @@ end
 
 % windup correction
 if windup
-    simplePlot(model_save.windup, hsv_color, 'WindUp Correction [m]', derivation)
+    model_save.windup = full(model_save.windup);
+    simplePlot(model_save.windup(:,:,1), hsv_color, 'WindUp Correction [m]', derivation)
 end
 
 % Shapiro effect correction

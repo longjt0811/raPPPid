@@ -1,4 +1,4 @@
-function Adjust = Designmatrix_ZD(Adjust, Epoch, model, settings)
+function [A, omc] = DSM_ZD(Adjust, Epoch, model, settings)
 % Create Designmatrix A and observed minus computed vector omc for code 
 % and phase solution for Zero-Difference-Model
 % 
@@ -8,7 +8,8 @@ function Adjust = Designmatrix_ZD(Adjust, Epoch, model, settings)
 % 	model       struct, observation model
 %   settings    struct, settings from GUI
 % OUTPUT: 
-%   Adjust      updated with A and omc
+%   A           Designmatrix
+%   omc         observed-minus-computed vector
 %
 % Revision:
 %
@@ -34,7 +35,7 @@ isBDS  = repmat(Epoch.bds,  num_freq, 1);
 isQZSS = repmat(Epoch.qzss, num_freq, 1);  	
 
 
-NO_PARAM = DEF.NO_PARAM_ZD;         % number of estimated parameters
+NO_PARAM = Adjust.NO_PARAM;         % number of estimated parameters
 s_f = no_sats*num_freq;             % satellites x frequencies
 exclude = Epoch.exclude(:);         % satellite excluded?
 usePhase = ~Epoch.cs_found(:);      % use phase observation? (e.g., cycle slip found)
@@ -158,9 +159,5 @@ if strcmp(settings.IONO.model, 'GRAPHIC')
 end
 
 
-
-%% save in Adjust
-Adjust.A = A;
-Adjust.omc = omc;
 
 

@@ -6,6 +6,7 @@ function [pos_ref_geo, North_ref, East_ref] = ...
 %   filepath        string, full relative filepath to reference trajectory
 %   leap_sec        integer, number of leap seconds of processing
 %   gpstime         vector, gps time (sow) of processing's epochs
+%   time            
 % OUTPUT: reference positions interpolated from the reference trajectory to
 %         the points in time of the PPP solution
 %	pos_ref_geo     struct [.lat, .lon, h], WGS84 reference points [rad rad m]
@@ -131,41 +132,88 @@ switch ext
         East_true(exclude) = []; North_true(exclude) = [];
         
     case '.csv'
-        % ground truth from Google Smartphone Decimeter Challenge 2023
-        % check: https://www.kaggle.com/competitions/smartphone-decimeter-2023/data
         csv_data = readtable(filepath);     % variable type: table
-        bool_lat = contains(csv_data.Properties.VariableNames, 'LatitudeDegrees');
-        bool_lon = contains(csv_data.Properties.VariableNames, 'LongitudeDegrees');
-        bool_alt = contains(csv_data.Properties.VariableNames, 'AltitudeMeters');
-        % get time stamp (Unix Time)
-        bool_UnixTime = contains(csv_data.Properties.VariableNames, 'UnixTimeMillis');
-        UnixTime = table2array(csv_data(:, bool_UnixTime)) / 1000;   % [ms] to [s]
-        dtime = datetime(UnixTime, 'convertfrom','posixtime', 'Format','dd-MMM-yyyy HH:mm:ss.SSS');
-        jd = juliandate(dtime);     % convert Matlab datetime to julian date
-        leap_sec = GetLeapSec_UTC_GPS(jd(1));       % number of leap seconds
-        % check if variables could be detected
-        if any(bool_lat) && any(bool_lon) && any(bool_alt)
-            % get latitude, longitude, height columns
-            lat_wgs84 = table2array(csv_data(:, bool_lat)) / 180 * pi;   	% convert [°] to [rad]
-            lon_wgs84 = table2array(csv_data(:, bool_lon)) / 180 * pi;
-            h_wgs84   = table2array(csv_data(:, bool_alt));
-            pos_ref_geo.lat = lat_wgs84;
-            pos_ref_geo.lon = lon_wgs84;
-            pos_ref_geo.h = h_wgs84;
-            % convert to UTM coordinates and gps time
-            n = numel(lat_wgs84);
-            North_ref = NaN(n,1); East_ref = NaN(n,1); sod_true = NaN(n,1); 
-            for i = 1:n
-                [North_ref(i), East_ref(i)] = ell2utm_GT(lat_wgs84(i), lon_wgs84(i));
-                [~, sow, ~] = jd2gps_GT(jd(i));             % julian date to gps time
-                sod_true(i) = mod(sow, 86400) + leap_sec;   % consider leap seconds
+        % Convert all column names to lowercase
+        csv_data = renamevars(csv_data, csv_data.Properties.VariableNames, lower(csv_data.Properties.VariableNames));
+        % get column names
+        vars = csv_data.Properties.VariableNames;
+
+        if any(contains(vars, 'latitude')) && any(contains(vars, 'longitude')) && ...
+                any(contains(vars, 'height')) && any(contains(vars, 'x_utm')) && any(contains(vars, 'y_utm'))
+
+            % get time
+            bool_sow = contains(vars, 'sow');
+            sod_true = mod(table2array(csv_data(:, bool_sow)), 86400);
+            % get latitude, longitude, and height
+            bool_lat = contains(vars, 'latitude');
+            bool_lon = contains(vars, 'longitude');
+            bool_h = contains(vars, 'height');
+            lat_wgs84 = table2array(csv_data(:, bool_lat));
+            lon_wgs84 = table2array(csv_data(:, bool_lon));
+            h_wgs84 = table2array(csv_data(:, bool_h));
+            % get North and East
+            bool_North = contains(vars, 'x_utm');
+            bool_East  = contains(vars, 'y_utm');
+            North_true = table2array(csv_data(:, bool_North));
+            East_true = table2array(csv_data(:, bool_East));
+
+        elseif any(contains(vars, 'latitudedegrees')) && any(contains(vars, 'longitudedegrees')) && ...
+                any(contains(vars, 'altitudemeters')) && any(contains(vars, 'unixtimemillis'))
+
+            % ground truth from Google Smartphone Decimeter Challenge 2023
+            % check: https://www.kaggle.com/competitions/smartphone-decimeter-2023/data
+            bool_lat = contains(vars, 'latitudedegrees');
+            bool_lon = contains(vars, 'longitudedegrees');
+            bool_alt = contains(vars, 'altitudemeters');
+            % get time stamp (Unix Time)
+            bool_UnixTime = contains(vars, 'unixtimemillis');
+            UnixTime = table2array(csv_data(:, bool_UnixTime)) / 1000;   % [ms] to [s]
+            dtime = datetime(UnixTime, 'convertfrom','posixtime', 'Format','dd-MMM-yyyy HH:mm:ss.SSS');
+            jd = juliandate(dtime);     % convert Matlab datetime to julian date
+            leap_sec = GetLeapSec_UTC_GPS(jd(1));       % number of leap seconds
+            % check if variables could be detected
+            if any(bool_lat) && any(bool_lon) && any(bool_alt)
+                % get latitude, longitude, height columns
+                lat_wgs84 = table2array(csv_data(:, bool_lat)) / 180 * pi;   	% convert [°] to [rad]
+                lon_wgs84 = table2array(csv_data(:, bool_lon)) / 180 * pi;
+                h_wgs84   = table2array(csv_data(:, bool_alt));
+                pos_ref_geo.lat = lat_wgs84;
+                pos_ref_geo.lon = lon_wgs84;
+                pos_ref_geo.h = h_wgs84;
+                % convert to UTM coordinates and gps time
+                n = numel(lat_wgs84);
+                North_ref = NaN(n,1); East_ref = NaN(n,1); sod_true = NaN(n,1);
+                for i = 1:n
+                    [North_ref(i), East_ref(i)] = ell2utm_GT(lat_wgs84(i), lon_wgs84(i));
+                    [~, sow, ~] = jd2gps_GT(jd(i));             % julian date to gps time
+                    sod_true(i) = mod(sow, 86400) + leap_sec;   % consider leap seconds
+                end
+                % to enable interpolation at the end of function
+                North_true = North_ref;
+                East_true  = East_ref;
+            else
+                [pos_ref_geo, North_ref, East_ref] = LoadingFailed();
+                return
             end
-            % to enable interpolation at the end of function
-            North_true = North_ref;     
-            East_true  = East_ref;
-        else
-            [pos_ref_geo, North_ref, East_ref] = LoadingFailed();
-            return
+
+        elseif any(contains(vars, 'gps_seconds')) && any(contains(vars, 'latitude')) && ...
+                any(contains(vars, 'longitude')) && any(contains(vars, 'altitude'))
+
+            sod_true = mod(csv_data.gps_seconds, 86400);
+            lat_wgs84 = csv_data.latitude  / 180 * pi;   	% convert [°] to [rad]
+            lon_wgs84 = csv_data.longitude / 180 * pi;   	% convert [°] to [rad]
+            h_wgs84 = csv_data.altitude;
+            [North_true, East_true] = ell2utm_GT(lat_wgs84, lon_wgs84);
+
+        elseif any(contains(vars, 'decimal_hour')) && any(contains(vars, 'day_of_year')) && ...
+                any(contains(vars, 'latitude_decimal_degree')) && any(contains(vars, 'longitude_decimal_degree')) && any(contains(vars, 'ellipsoidal_height_m'))
+            % output of CSRS NRCan Online PPP
+
+            sod_true = csv_data.decimal_hour * 3600;
+            lat_wgs84 = csv_data.latitude_decimal_degree  / 180 * pi;   	% convert [°] to [rad]
+            lon_wgs84 = csv_data.longitude_decimal_degree / 180 * pi;   	% convert [°] to [rad]
+            h_wgs84 = csv_data.ellipsoidal_height_m;
+            [North_true, East_true] = ell2utm_GT(lat_wgs84, lon_wgs84);
         end
 
     case {'.sp3', '.pre'}
@@ -229,14 +277,25 @@ switch ext
         % ||| implement interpolation?!?! consider receiver clock error
         % (gpstime is from RINEX epoch)
         % [X(1),X(2),X(3)] = poly_interp11(Ttr, T_ipol, X_ipol, Y_ipol, Z_ipol);
-        
-        
+                
     otherwise
         [pos_ref_geo, North_ref, East_ref] = LoadingFailed();
         return
         
 end
 
+
+% needed variables at this point ([s], [rad], [m]):
+% sod_true, lat_wgs84, lon_wgs84, h_wgs84, North_true, East_true
+
+% remove NaNs
+remove = isnan(sod_true) | isnan(lat_wgs84) | isnan(lon_wgs84) | isnan(h_wgs84) | isnan(North_true) | isnan(East_true);
+sod_true(remove) = [];
+lat_wgs84(remove) = [];
+lon_wgs84(remove) = [];
+h_wgs84(remove) = [];
+North_true(remove) = [];
+East_true(remove) = [];
 
 
 %% interpolate reference trajectory to the time-stamps of the PPP solution

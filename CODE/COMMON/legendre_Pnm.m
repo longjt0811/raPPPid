@@ -45,7 +45,7 @@ for n = 0:N-1
         else                    % all other entries     
             a_nm = calc_a(n, m);
             b_nm = calc_b(n, m);
-            POLY(n+1,m+1) = a_nm*sin(y)*POLY(n,m+1) - b_nm*POLY(n-1,m+1);  	% (9), sign error in publication!
+            POLY(n+1,m+1) = a_nm*sin(y)*POLY(n,m+1) - b_nm*POLY(n-1,m+1);  	% (9), sign error in (Zhixi Nie et al., 2019)!
         end
     end
 end

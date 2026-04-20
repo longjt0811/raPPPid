@@ -35,6 +35,7 @@ Epoch.LLI_bit_rinex = [];       % LLI bit from Rinex file
 Epoch.ss_digit_rinex = [];      % signal strength value from Rinex file
 Epoch.code = [];
 Epoch.phase = [];
+Epoch.doppler = [];
 Epoch.C1 = [];
 Epoch.C2 = [];
 Epoch.C3 = [];

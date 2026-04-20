@@ -1,9 +1,14 @@
-function [] = velocityPlot(xyz, seconds, label_x_sec)
+function [] = velocityPlot(vel, xyz, xyz_true, seconds, label_x_sec)
+% This function plots the 3D speed over time.
 % 
 % INPUT:
-%   ...
+%   vel             n x 3, velocity estimation from PPP
+%   xyz             n x 3, position estimation from PPP
+%   xyz_true        n x 3, reference trajectory
+%   seconds         n x 1, time [s]
+%   label_x_sec     string, label for x-axis
 % OUTPUT:
-%	...
+%	[]
 %
 % Revision:
 %   ...
@@ -11,37 +16,117 @@ function [] = velocityPlot(xyz, seconds, label_x_sec)
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
 
-% calculate movement in x, y, z from one epoch to next [m]
-dx = diff(xyz(:,1));
-dy = diff(xyz(:,2));
-dz = diff(xyz(:,3));
 
-% calculate 3D velocity
-v = sqrt(dx.^2 + dy.^2 + dz.^2);
+
+%% Preparations
+
+vx_true = [];   vy_true = [];   vz_true = [];
+
+iszero = all(vel==0, 2);    % if true, then no velocity estimation
+vel(iszero, :) = NaN;
+
+xyz(xyz==0) = NaN;
+
+
+
+%% Calculate velocities
+
+% calculate velocity in x, y, z from one epoch to next [m]
+vx = gradient(xyz(:,1), seconds);
+vy = gradient(xyz(:,2), seconds);
+vz = gradient(xyz(:,3), seconds);
+if size(xyz_true, 1) > 1
+    vx_true = gradient(xyz_true(:,1), seconds);
+    vy_true = gradient(xyz_true(:,2), seconds);
+    vz_true = gradient(xyz_true(:,3), seconds);
+end
+
+% calculate 3D speed
+speed_pos  = sqrt(vx.^2 + vy.^2 + vz.^2);
+speed_true = sqrt(vx_true.^2 + vy_true.^2 + vz_true.^2);
+speed_vel = vecnorm(vel, 2, 2);
 
 % convert from m/s to km/h
-v = v * 3.6;
+speed_pos  =  speed_pos * 3.6;
+speed_vel  =  speed_vel * 3.6;
+speed_true = speed_true * 3.6;
 
-% remove first epoch and epochs without valid coordinate solution from time vector
-seconds = seconds(2:end);
 
-% delete outliers (velocity over 10^6 km/h)
-outlier = (v > 1e6);
 
-% % smooth velocity over 30 epochs
-% v = movmean(v, 30);
+%% Plot velocities over time
+% prepare figure
+fig = figure('Name', '3D velocity', 'NumberTitle','off');
+hold on
 
 % plot
-fig =  figure('Name', '3D velocity', 'NumberTitle','off');
-plot(seconds(~outlier), v(~outlier))
-title('3D Velocity over time')
+p1 = plot(seconds, speed_vel, 'Color', [0.96, 0.42, 0.26], 'LineWidth', 1);
+p2 = plot(seconds, speed_pos, 'Color', [0.35, 0.42, 0.26], 'LineWidth', 1);
+if ~isempty(speed_true)
+    p3 = plot(seconds, speed_true, 'Color', [0.20, 0.69, 0.93], 'LineWidth', 1);
+end
+
+% style plot
+title('3D Speed over time')
 xlabel(label_x_sec)
-ylabel('Velocity [km/h]')
+ylabel('Speed [km/h]')
+xlim([0 Inf])
+if ~isempty(speed_true)
+    legend([p1; p2; p3], {'velocity est.', '\Delta position est.', '\Delta reference'})
+else
+    legend([p1; p2], {'velocity est.', '\Delta position est.'})
+end
 
 % add customized datatip
 dcm = datacursormode(fig);
 datacursormode on
 set(dcm, 'updatefcn', @vis_customdatatip_vel)
+
+
+
+%% Plot histogram
+
+if ~isempty(speed_true)
+    % prepare figure
+    fig_histo = figure('Name', 'Difference velocity to reference', 'NumberTitle','off');
+
+    % calculate difference between estimation and reference
+    diff = speed_true - speed_vel;
+    valid_diff = diff(~isnan(diff));        % ignore NaN explicitely
+
+    % plot difference in histogram
+    h = histogram(abs(valid_diff), 'Normalization', 'percentage', 'BinWidth', 0.125);
+    hold on
+
+
+    % compute cumulative percentage
+    perc = h.Values;                   % percentage in each bin
+    perc_cum   = cumsum(perc);          % cumulative percentage
+    bins = (h.BinEdges(1:end-1) + h.BinEdges(2:end))/2;
+
+    % plot cumulative percentage on secondary y-axis
+    yyaxis right
+    plot(bins, perc_cum, '-r', 'LineWidth', 1.5)
+    ylabel('Cumulative percentage [%]')
+    ylim([0 100])
+
+    % switch back to left axis for styling
+    yyaxis left
+
+    % calculate standard deviation and bias
+    stdev = std(valid_diff, 'omitmissing');
+    bias = mean(valid_diff, 'omitmissing');
+    % style plot
+    title('Velocity Difference')
+    xlim([0 3])
+    ylim([0 100])
+    ylabel('Percentage [%]')
+    xlabel(['[km/h]' ', stdev: ' sprintf('%.2f', stdev) ', bias: ' sprintf('%.2f', bias)])
+
+    % add customized datatip
+    dcm = datacursormode(fig_histo);
+    datacursormode on
+    set(dcm, 'updatefcn', @vis_customdatatip_histo)
+end
 
 
 
@@ -62,6 +147,27 @@ second = pos(1);
 velocity = pos(2);
 
 % create cell with strings as output (which will be shown when clicking)
-output_txt{1} = ['Second: ', sprintf('%.0f', second)];    % epoch
-output_txt{2} = [sprintf('%.3f', velocity) ' km/h'];   % value
+output_txt{1} = event_obj.Target.DisplayName;           % name of line
+output_txt{2} = ['Second: ', sprintf('%.0f', second)];  % epoch
+output_txt{3} = [sprintf('%.3f', velocity) ' km/h'];    % value
 
+
+function output_txt = vis_customdatatip_histo(obj, event_obj)
+% get position of click
+pos = get(event_obj, 'Position');
+velocity_diff = pos(1);
+value = pos(2);
+
+output_txt{1} = event_obj.Target.DisplayName;
+
+if strcmp(event_obj.Target.Type, 'histogram')
+    % Histogram bars
+    bin_idx = event_obj.Target.Bin(e.DataIndex);
+    output_txt{2} = ['Velocity Diff [km/h]: ', sprintf('%.2f', velocity_diff)];
+    output_txt{3} = ['Percentage: ', sprintf('%.1f%%', value)];
+    output_txt{4} = ['Cumulative: ', sprintf('%.1f%%', cumPerc(bin_idx))];
+else
+    % Line (cumulative percentage)
+    output_txt{2} = ['Velocity Diff [km/h]: ', sprintf('%.2f', velocity_diff)];
+    output_txt{3} = ['Cumulative %: ', sprintf('%.1f%%', value)];
+end

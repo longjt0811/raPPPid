@@ -1,8 +1,6 @@
-function fixable = CheckSatellitesFixable(Epoch, settings, model, input)
-% This function checks which satellites are fixable in regards of:
-% - fixing cutoff
-% - code biases
-% - phase biases
+function Epoch = CheckSatellitesFixable(Epoch, settings, model, input)
+% This function checks which observations are suitable for integer
+% ambiguity fixing. Particularly, the existence of biases is checked.
 %
 % INPUT:
 %	Epoch       struct, containing epoch-specific data
@@ -10,7 +8,7 @@ function fixable = CheckSatellitesFixable(Epoch, settings, model, input)
 %   model       struct, observation model
 %   input       struct, input data
 % OUTPUT:
-%	fixable     updated version of Epoch.fixable
+%	Epoch       updated (Epoch.fixable and, potentially, Epoch.exclude)
 %
 % Revision:
 %   ...
@@ -25,17 +23,26 @@ function fixable = CheckSatellitesFixable(Epoch, settings, model, input)
 % get current vector fixable
 fixable = Epoch.fixable;
 
-% build code and phase bias matrix
+% check if DCM is used
+DecoupledClock = strcmp(settings.IONO.model, 'Estimate, decoupled clock');
+
+% build matrix with code/phase biases and code/phase observations
 switch settings.INPUT.num_freqs
     case 1
-        C_bias = Epoch.C1_bias;
+        C_bias = Epoch.C1_bias; 
         L_bias = Epoch.L1_bias;
+        C_exists = (Epoch.C1 ~= 0 & ~isnan(Epoch.C1));
+        L_exists = (Epoch.L1 ~= 0 & ~isnan(Epoch.L1));
     case 2
         C_bias = [Epoch.C1_bias, Epoch.C2_bias];
         L_bias = [Epoch.L1_bias, Epoch.L2_bias]; 
+        C_exists = [Epoch.C1 ~= 0 & ~isnan(Epoch.C1), Epoch.C2 ~= 0 & ~isnan(Epoch.C2)];
+        L_exists = [Epoch.L1 ~= 0 & ~isnan(Epoch.L1), Epoch.L2 ~= 0 & ~isnan(Epoch.L2)];        
     case 3
         C_bias = [Epoch.C1_bias, Epoch.C2_bias, Epoch.C3_bias];
         L_bias = [Epoch.L1_bias, Epoch.L2_bias, Epoch.L3_bias];
+        C_exists = [Epoch.C1 ~= 0 & ~isnan(Epoch.C1), Epoch.C2 ~= 0 & ~isnan(Epoch.C2), Epoch.C3 ~= 0 & ~isnan(Epoch.C3)];
+        L_exists = [Epoch.L1 ~= 0 & ~isnan(Epoch.L1), Epoch.L2 ~= 0 & ~isnan(Epoch.L2), Epoch.L3 ~= 0 & ~isnan(Epoch.L3)];              
     otherwise
         fprintf(2, '\nCheckSatellitesFixable.m, an otherwise occurred!\n');
 end
@@ -67,25 +74,10 @@ end
 
 %% (Code) Biases
 switch settings.BIASES.code
-    case 'CAS Multi-GNSS DCBs'
-        fprintf(2, '\nCheckSatellitesFixable.m, an otherwise occurred!\n');
-        % ||| implement
 		
-    case 'CAS Multi-GNSS OSBs'
-        fprintf(2, '\nCheckSatellitesFixable.m, an otherwise occurred!\n');
-        % ||| implement
-		
-    case 'DLR Multi-GNSS DCBs'
-        fprintf(2, '\nCheckSatellitesFixable.m, an otherwise occurred!\n');
-        % ||| implement
-        
-    case 'CODE DCBs (P1P2, P1C1, P2C2)'
-        fprintf(2, '\nCheckSatellitesFixable.m, an otherwise occurred!\n');
-        % ||| implement
-        
     case {'CODE OSBs', 'CODE MGEX'}
         % nothing to do here for the code biases because they are most 
-        % likely zero, check phase
+        % likely zero, check only phase biases
         if ~strcmp(settings.BIASES.phase, 'SGG FCBs') && strcmp(settings.ORBCLK.prec_prod, 'CNES')
             % CNES integer recovery clock
             WL_gps = input.ORBCLK.preciseClk_GPS.WL(Epoch.sats(Epoch.gps))';
@@ -97,43 +89,30 @@ switch settings.BIASES.code
         elseif strcmp(settings.BIASES.phase, 'off')    
             % CODE phase biases are used for PPP-AR:
             % check phase biases in L_bias
-            excl_pbias = (L_bias == 0);
+            excl_pbias = (L_bias == 0) & L_exists;
             excl_pbias = frequency_convert(excl_pbias, settings);
             fixable(excl_pbias) = false;
         end
         
-    case {'CNES OSBs', 'CNES MGEX', 'GFZ MGEX', 'WUM MGEX', 'HUST MGEX'}
+    case {'CNES OSBs', 'CNES MGEX', 'GFZ MGEX', 'WUM MGEX', 'WCC MGEX', 'HUST MGEX', 'IGS'...
+            'CNES postprocessed'}
         % check code biases in C_bias
-        excl_cbias = (C_bias == 0);
+        excl_cbias = (C_bias == 0) & C_exists;
         excl_cbias = frequency_convert(excl_cbias, settings);
         fixable(excl_cbias) = false;
         % check phase biases in L_bias
-        excl_pbias = (L_bias == 0);
+        excl_pbias = (L_bias == 0) & L_exists;
         excl_pbias = frequency_convert(excl_pbias, settings);
         fixable(excl_pbias) = false;
-        
-    case 'CNES postprocessed'
-        % check code biases in C_bias
-        excl_cbias = (C_bias == 0);
-        excl_cbias = frequency_convert(excl_cbias, settings);
-        fixable(excl_cbias) = false;
-        % check phase biases in L_bias
-        excl_pbias = (L_bias == 0);
-        excl_pbias = frequency_convert(excl_pbias, settings);
-        fixable(excl_pbias) = false;
-               
-    case 'Broadcasted TGD'
-        fprintf(2, '\nCheckSatellitesFixable.m, an otherwise occurred!\n');
-        % ||| implement
         
     case 'manually'         % e.g., TUG products
         if settings.BIASES.code_manually_Sinex_bool
             % check code biases in C_bias
-            excl_cbias = (C_bias == 0);
+            excl_cbias = (C_bias == 0) & C_exists;
             excl_cbias = frequency_convert(excl_cbias, settings);
             fixable(excl_cbias) = false;
             % check phase biases in L_bias
-            excl_pbias = (L_bias == 0);
+            excl_pbias = (L_bias == 0) & L_exists;
             excl_pbias = frequency_convert(excl_pbias, settings);
             fixable(excl_pbias) = false;
         else
@@ -143,13 +122,18 @@ switch settings.BIASES.code
         
     case 'Correction Stream'
             % check code biases in C_bias
-            excl_cbias = (C_bias == 0);
+            excl_cbias = (C_bias == 0) & C_exists;
             excl_cbias = frequency_convert(excl_cbias, settings);
             fixable(excl_cbias) = false; 
         
     case 'off'
         % nothing to do there
         
+    case {'CAS Multi-GNSS DCBs', 'CAS Multi-GNSS OSBs', 'DLR Multi-GNSS DCBs', ...
+            'CODE DCBs (P1P2, P1C1, P2C2)', 'Broadcasted TGD'}
+        fprintf(2, '\nCheckSatellitesFixable.m, an otherwise occurred!\n');
+        % ||| implement
+
     otherwise
         fprintf(2, '\nCheckSatellitesFixable.m, an otherwise occurred!\n');
 end
@@ -157,7 +141,7 @@ end
 
 
 %% Phase biases
-if settings.AMBFIX.bool_AMBFIX
+if settings.AMBFIX.bool_AMBFIX || DecoupledClock
     switch settings.BIASES.phase
         case 'off'
             % nothing to do here
@@ -174,21 +158,28 @@ if settings.AMBFIX.bool_AMBFIX
             excl_pbias = frequency_convert(excl_pbias, settings);
             fixable(excl_pbias) = false;
             
+        case 'Correction Stream'
+            % check phase biases in L_bias
+            excl_pbias = (L_bias == 0)  & L_exists;
+            excl_pbias = frequency_convert(excl_pbias, settings);
+            fixable(excl_pbias) = false;
+
         case 'WHU phase/clock biases'
             fprintf(2, '\nCheckSatellitesFixable.m, an otherwise occurred!\n');
             % ||| implement
-            
-        case 'Correction Stream'
-            % check phase biases in L_bias
-            excl_pbias = (L_bias == 0);
-            excl_pbias = frequency_convert(excl_pbias, settings);
-            fixable(excl_pbias) = false;
 
         otherwise
             fprintf(2, '\nCheckSatellitesFixable.m, an otherwise occurred!\n');
     end
 end
 
+
+%% save into Epoch
+Epoch.fixable = fixable;
+% if DecoupledClock
+%     % DCM is sensitive to missing biases -> only use satellites with all biases
+%     % Epoch.exclude(~Epoch.fixable & ~Epoch.glo) = true;
+% end
 
 
 function bool = frequency_convert(bool, settings)

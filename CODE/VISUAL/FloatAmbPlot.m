@@ -58,7 +58,8 @@ for j = 1:no_frqs
         refSat = mod(storeData.(['refSat' char2gnss3(gnss)]), 100);
         [rows, cols] = size(N_j);
         % convert epochs and reference satellite to linear indices
-        ind = sub2ind([rows, cols], 1:rows, refSat');
+        bool = (refSat~=0); rows = rows - sum(~bool);
+        ind = sub2ind([rows, cols], 1:rows, refSat(bool)');
         % set the float ambiguities of the reference satellite to zero for plotting
         N_j(ind) = 0;       
     end

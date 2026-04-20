@@ -218,6 +218,10 @@ if PLOT.XYZ
     l_sto{end+1} = 'param';
     l_sto{end+1} = 'xyz_fix';
 end
+if PLOT.velocity
+    l_sto{end+1} = 'param';
+    l_sto{end+1} = 'xyz_fix';
+end
 if PLOT.UTM
     l_sto{end+1} = 'posFloat_utm';
     l_sto{end+1} = 'posFixed_utm';
@@ -252,7 +256,7 @@ if PLOT.amb && PLOT.fixed       % Fixed Ambiguity plots
     l_sat{end+1} = 'obs';
     l_sat{end+1} = 'elev';
 end
-if PLOT.clock                       % Clock plot
+if PLOT.clock                       % Receiver Clock plot
     l_sto{end+1} = 'param';
 end
 if PLOT.dcb

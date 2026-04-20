@@ -52,7 +52,7 @@ if settings.INPUT.use_GPS
     print_gnss_signal(print, 'GPS ', obs.GPS.(C_L));
     obs_prns_G = obs_prns(obs_prns < 100);
     prns_string_G = sprintfc('%02.0f', obs_prns_G);        % satellite prns for legend
-    plot_code_difference(n_plot, x, DIFF, obs_prns_G, prns_string_G, label_x, thresh, ms, i_plot, print)
+    plot_time_difference(n_plot, x, DIFF, obs_prns_G, prns_string_G, label_x, thresh, ms, i_plot, print, unit)
     title('GPS')
     i_plot = i_plot + 1;
 end
@@ -60,7 +60,7 @@ if settings.INPUT.use_GLO
     print_gnss_signal(print, 'GLO ', obs.GLO.(C_L))
     obs_prns_R = obs_prns(obs_prns > 100 & obs_prns < 200);
     prns_string_R = sprintfc('%02.0f', obs_prns_R);        % satellite prns for legend
-    plot_code_difference(n_plot, x, DIFF, obs_prns_R, prns_string_R, label_x, thresh, ms, i_plot, print)
+    plot_time_difference(n_plot, x, DIFF, obs_prns_R, prns_string_R, label_x, thresh, ms, i_plot, print, unit)
     title('GLONASS')
     i_plot = i_plot + 1;
 end
@@ -68,7 +68,7 @@ if settings.INPUT.use_GAL
     print_gnss_signal(print, 'GAL ', obs.GAL.(C_L))
     obs_prns_E = obs_prns(obs_prns > 200 & obs_prns < 300);
     prns_string_E = sprintfc('%02.0f', obs_prns_E);        % satellite prns for legend
-    plot_code_difference(n_plot, x, DIFF, obs_prns_E, prns_string_E, label_x, thresh, ms, i_plot, print)
+    plot_time_difference(n_plot, x, DIFF, obs_prns_E, prns_string_E, label_x, thresh, ms, i_plot, print, unit)
     title('Galileo')
     i_plot = i_plot + 1;
 end
@@ -76,7 +76,7 @@ if settings.INPUT.use_BDS
     print_gnss_signal(print, 'BDS ', obs.BDS.(C_L))
     obs_prns_C = obs_prns(obs_prns > 300 & obs_prns < 400);
     prns_string_C = sprintfc('%02.0f', obs_prns_C);        % satellite prns for legend
-    plot_code_difference(n_plot, x, DIFF, obs_prns_C, prns_string_C, label_x, thresh, ms, i_plot, print)
+    plot_time_difference(n_plot, x, DIFF, obs_prns_C, prns_string_C, label_x, thresh, ms, i_plot, print, unit)
     title('BeiDou')
     i_plot = i_plot + 1;
 end
@@ -84,7 +84,7 @@ if settings.INPUT.use_QZSS
     print_gnss_signal(print, 'QZSS', obs.QZSS.(C_L))
     obs_prns_J = obs_prns(obs_prns > 400 & obs_prns < 500);
     prns_string_J = sprintfc('%02.0f', obs_prns_J);        % satellite prns for legend
-    plot_code_difference(n_plot, x, DIFF, obs_prns_J, prns_string_J, label_x, thresh, ms, i_plot, print)
+    plot_time_difference(n_plot, x, DIFF, obs_prns_J, prns_string_J, label_x, thresh, ms, i_plot, print, unit)
     title('QZSS')
 end
 
@@ -123,8 +123,8 @@ output_txt{3} = ['Value: ' sprintf('%.3f', val) 'm'];    % epoch
 
 
 
-function [] = plot_code_difference(n_plot, x, C1_diff, obs_prns_gnss, prns_string_gnss, label_x, thresh, ms, i_plot, print)
-% ---- plot code difference over time ----
+function [] = plot_time_difference(n_plot, x, C1_diff, obs_prns_gnss, prns_string_gnss, label_x, thresh, ms, i_plot, print, unit)
+% ---- plot observation difference over time ----
 subplot(n_plot, 1, i_plot) 
 hold on
 for i = 1:numel(obs_prns_gnss)
@@ -151,6 +151,7 @@ end
 
 % ylim([-3*thresh, 3*thresh])
 xlabel(label_x)
+ylabel(unit)
 legend on
 hleg = legend(prns_string_gnss);
 title(hleg, 'PRN')          % title for legend

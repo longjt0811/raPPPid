@@ -7,11 +7,11 @@ function dx = solid_tides(recECEF, lat, lon, sunECEF, moonECEF, mjd)
 % mathews.m and matthew.m of VieVS VLBI (https://github.com/TUW-VieVS/VLBI)
 % 
 % INPUT:
-%   recECEF     receiver ECEF coordinates [m]
+%   recECEF     3x1, receiver ECEF coordinates [m]
 %   lat         receiver latitude [rad]
 %   lon         receiver longitude [rad]
-%   sunECEF     sun ECEF coordinates [m]
-%   moonECEF   	moon ECEF coordinates [m]
+%   sunECEF     3x1, sun ECEF coordinates [m]
+%   moonECEF   	3x1, moon ECEF coordinates [m]
 %   mjd        	modified julian date
 % OUTPUT:
 %   dx          displacement vector in ECEF [m]

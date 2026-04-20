@@ -20,22 +20,47 @@ function [settings] = DownloadORBEX(settings, gpsweek, dow, yyyy, mm, doy)
 
 
 %% Preparations
-target = {[Path.DATA, 'ORBIT/', yyyy, '/', doy]};
+target = {[Path.DATA, 'ORBIT/', yyyy, '/', doy '/']};
 [~, ~] = mkdir(target{1});
 URL_host = 'igs.ign.fr:21';            % default ftp-server
 decompressed = {''};
 URL_host_2 = ''; URL_folder_2 = ''; file_2 = '';
+file_status = 0;
 
 %% switch source of orbits/clocks
 if settings.ORBCLK.MGEX
     % http://www.igs.org/products
     URL_folder = {['/pub/igs/products/mgex/', gpsweek, '/']};
     switch settings.ORBCLK.prec_prod
+        case 'IGS'
+            URL_host = 'https://cddis.nasa.gov';
+            URL_folders = {['/archive/gnss/products/' gpsweek '/']};
+            files = {['IGS0DEMFIN_' yyyy doy '0000_01D_30S_ATT.OBX.gz']};
+            % download
+            file_status = get_cddis_data(URL_host, URL_folders, files, target, true);
+            if file_status == 0
+                errordlg('No IGS MGEX ORBEX found on server. Please specify different source!', 'Error');
+            end
+            % decompress
+            decompressed = unzip_and_delete(files, target);
+            % save filepath
+            settings.ORBCLK.file_obx = decompressed{1};
+            return
+            
         case 'CODE'
-            URL_host = 'ftp.aiub.unibe.ch:21';
+            host = 'http://www.aiub.unibe.ch/download/';
             URL_folder = {['/CODE_MGEX/CODE/' yyyy, '/']};
             file = {['COD0MGXFIN_' yyyy doy '0000_01D_30S_ATT.OBX.gz']};
-            
+            decomp = {['COD0MGXFIN_' yyyy doy '0000_01D_30S_ATT.OBX']};
+            % download
+            if ~isfile([target{1} file{1}]) && ~isfile([target{1} decomp{1}]) && ~isfile([target{1} decomp{1} '.mat']) 
+                try
+                    websave([target{1} file{1}], [host URL_folder{1} file{1}]);
+                    file_status = 1;
+                catch
+                end
+            end
+
         case 'CNES'
             file = {['GRG0MGXFIN_' yyyy doy '0000_01D_30S_ATT.OBX.gz']};
             
@@ -49,6 +74,11 @@ if settings.ORBCLK.MGEX
                     URL_folder = {['/pub/igs/products/mgex/', gpsweek, '/']};
                     file = {['WUM0MGXFIN_' yyyy doy '0000_01D_30S_ATT.OBX.gz']};
             end
+
+            % try ftps://bdspride.com
+            URL_host_1 = 'ftps://bdspride.com/';
+            URL_folders_1 = ['wum/' gpsweek '/'];
+            file_status = CurlDownload([target{1} file{1}], [URL_host_1 URL_folders_1 file{1}], false);
 
             
         case 'GFZ'
@@ -75,7 +105,14 @@ if settings.ORBCLK.MGEX
                 case 'Ultra-Rapid'
                     file = {['HUS0MGXULT_' yyyy doy '0000_01D_30S_ATT.OBX.gz']};
             end
-            
+
+        case 'WCC'
+            file = {['WCC0OPSFIN_' yyyy doy '0000_01D_30S_ATT.OBX.gz']};
+            % try ftps://bdspride.com
+            URL_host_1 = 'ftps://bdspride.com/';
+            URL_folders_1 = ['wcc/' gpsweek '/'];
+            file_status = CurlDownload([target{1} file{1}], [URL_host_1 URL_folders_1 file{1}], false);
+
         otherwise
             errordlg('No ORBEX file for this institution', 'ORBEX Error');
             return
@@ -91,8 +128,9 @@ end
 
 
 %% download and unzip files, if necessary
-
-file_status = ftp_download(URL_host, URL_folder{1}, file{1}, target{1}, true);
+if file_status == 0
+    file_status = ftp_download(URL_host, URL_folder{1}, file{1}, target{1}, true);
+end
 if file_status == 0 && ~isempty(URL_host_2)
     % download failed, try another ftp server
     file_status = ftp_download(URL_host_2, URL_folder_2{1}, file_2{1}, target{1}, true);

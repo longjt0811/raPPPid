@@ -55,11 +55,17 @@ if ~strcmp(filtersetts.ADJ.filter.type,'No Filter')			% Filter is enabled
     set(handles.edit_filter_beidou_offset_Q,             'String', sprintf('%.0f', sqrt(filtersetts.ADJ.filter.Q_rclk_bds)) );
     set(handles.popupmenu_filter_beidou_offset_dynmodel, 'Value', filtersetts.ADJ.filter.dynmodel_rclk_bds+1);
     try
-	% Receiver Clock Error QZSS
-    set(handles.edit_filter_qzss_offset_sigma0,        'String', sprintf('%.0f', sqrt(filtersetts.ADJ.filter.var_rclk_qzss)) );
-    set(handles.edit_filter_qzss_offset_Q,             'String', sprintf('%.0f', sqrt(filtersetts.ADJ.filter.Q_rclk_qzss)) );
-    set(handles.popupmenu_filter_qzss_offset_dynmodel, 'Value', filtersetts.ADJ.filter.dynmodel_rclk_bds+1);	
-	end
+    	% Receiver Clock Error QZSS
+        set(handles.edit_filter_qzss_offset_sigma0,        'String', sprintf('%.0f', sqrt(filtersetts.ADJ.filter.var_rclk_qzss)) );
+        set(handles.edit_filter_qzss_offset_Q,             'String', sprintf('%.0f', sqrt(filtersetts.ADJ.filter.Q_rclk_qzss)) );
+        set(handles.popupmenu_filter_qzss_offset_dynmodel, 'Value', filtersetts.ADJ.filter.dynmodel_rclk_bds+1);
+    end
+    try
+        % Receiver Clock Drift
+        set(handles.edit_filter_rec_clk_drift_sigma0,        'String', sprintf('%.0f', sqrt(filtersetts.ADJ.filter.var_rclk_drift)) );
+        set(handles.edit_filter_rec_clk_drift_Q,             'String', sprintf('%.0f', sqrt(filtersetts.ADJ.filter.Q_rclk_drift)) );
+        set(handles.popupmenu_filter_rec_clk_drift_dynmodel, 'Value', filtersetts.ADJ.filter.dynmodel_rclk_drift+1);
+    end
     % Receiver DCBs
     set(handles.edit_filter_dcbs_sigma0,        'String', num2str(sqrt(filtersetts.ADJ.filter.var_DCB)) );
     set(handles.edit_filter_dcbs_Q,             'String', num2str(sqrt(filtersetts.ADJ.filter.Q_DCB)) );

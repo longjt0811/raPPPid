@@ -32,14 +32,14 @@ OmegaE = [0; 0; Const.WE];
 R_z = dcm_eci_2_ecef(time - (leapsec/86400));    
 
 % Satellite position and velocity in ECI frame
-r_eci = R_z * param(1:3);
-v_eci = R_z * param(4:6) + cross(OmegaE, r_eci);
+r_eci = R_z' * param(1:3);
+v_eci = R_z' * param(4:6) + cross(OmegaE, r_eci);
 
 % orbital angular momentum vector
 n = cross(r_eci,v_eci);
 
 % transform LOS to ECI
-Los_eci = R_z * (Rot_X - param(1:3));
+Los_eci = R_z' * (Rot_X - param(1:3));
 % compute components R, S, W
 R = Los_eci'*(r_eci/norm(r_eci));                 % radial
 S = Los_eci'*cross(n/norm(n),r_eci/norm(r_eci));  % along-track

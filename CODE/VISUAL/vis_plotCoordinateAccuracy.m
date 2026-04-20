@@ -34,29 +34,24 @@ mean_dN = mean(dN, 'omitnan');
 
 % Plot difference of coordinates
 hold on
-pl_calc = scatter(dE, dN, 50, [1 .44 .44], '.');            % calculated positions
+pl_calc = scatter(dE, dN, 50, [.8 .22 .22], '.');            % calculated positions
 pl_mean = plot(mean_dE,mean_dN, 'bx', 'MarkerSize', 10); 	% mean position
+
+% % Plot circle with radius of 1cm and 5cm
+% theta = linspace(0, 2*pi, 100);
+% plot(0.01 * cos(theta), 0.01 * sin(theta))
+% plot(0.05 * cos(theta), 0.05 * sin(theta))
 
 % Style
 title(['Coordinate Accuracy for ' label ', ' floatfix])
-xlabel('East [m]')
-ylabel('North [m]')
-if any(dE~=0) && any(dN~=0)
-    xlim([min([dE-std_dE/2; 0-std_dE/2]) max([dE+std_dE/2; 0+std_dE/2])])
-    ylim([min([dN-std_dN/2; 0-std_dN/2]) max([dN+std_dN/2; 0+std_dN/2])])
-end
+xlabel(['East [m], bias=' sprintf('%02.3f', mean_dE) ', std=' sprintf('%02.3f', std_dE) ])
+ylabel(['North [m], bias=' sprintf('%02.3f', mean_dN) ', std=' sprintf('%02.3f', std_dN)])
 axis equal
 hline(0, 'k--')
 vline(0, 'k--')
 
-% add text with stdev and bias
-str0 = 'EAST [m],      NORTH [m]';
-str1 = ['bias=' sprintf('%02.3f', mean_dE) ', bias=' sprintf('%02.3f', mean_dN)];
-str2 = ['std =' sprintf('%02.3f', std_dE) ',  std=' sprintf('%02.3f', std_dN)];
-TextLocation({str0, str1, str2},'Location','best')
-
 % add legend
-legend([pl_calc pl_mean],{'Calculated', 'Mean', 'Text'}, 'Location','best')
+legend([pl_calc pl_mean],{'Calculated', 'Mean', 'Text'}, 'Location', 'southeast')
 
 % add customized datatip
 dcm = datacursormode(fig_coords);

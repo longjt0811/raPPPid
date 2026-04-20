@@ -44,20 +44,41 @@ settings.ORBCLK.file_erp = '';  decompressed = {''};
 
 %% switch source of orbits/clocks
 switch settings.ORBCLK.prec_prod
-    
+
     case 'IGS'
         % http://www.igs.org/products
         URL_folders = {['/pub/igs/products/', gpsweek, '/']};
         URL_folders_2 = {['/archive/gnss/products/' gpsweek]};
-        
+
         switch settings.ORBCLK.prec_prod_type
             case 'Final'
-                if str2double(gpsweek) >= 2238
-                    file = {['IGS0OPSFIN_' yyyy_0 doy_0 '0000_07D_01D_ERP.ERP.gz']};
+                if ~settings.ORBCLK.MGEX
+                    if str2double(gpsweek) >= 2238
+                        file = {['IGS0OPSFIN_' yyyy_0 doy_0 '0000_07D_01D_ERP.ERP.gz']};
+                    else
+                        file = {['igs' yyyy(3:4) 'P' gpsweek '.erp.Z']};    % IGS erp file
+                    end
                 else
-                    file = {['igs' yyyy(3:4) 'P' gpsweek '.erp.Z']};    % IGS erp file
+                    % % not available yet?! CHANGE FILENAME!
+                    % file = {['IGS0DEMFIN_' yyyy doy '0000_01D_01D_OSB.BIA.gz']};
+                    %
+                    % URL_host = 'https://cddis.nasa.gov';
+                    % URL_folder = {['/archive/gnss/products/' gpsweek '/']};
+                    % % create folder and prepare the download
+                    % target = {[Path.DATA, 'ERP/', yyyy, '/', doy]};
+                    % [~, ~] = mkdir(target);
+                    % % download
+                    % file_status = get_cddis_data(URL_host, URL_folder, file, {target}, false);
+                    % if file_status == 0
+                    %     errordlg('No IGS MGEX ERPs found on server.', 'Error');
+                    % end
+                    % % decompress
+                    % decompressed = unzip_and_delete(file, {target});
+                    % % save path to EOPs (erp)
+                    % settings.ORBCLK.file_erp = decompressed{1};
+                    % return
                 end
-                
+
             case 'Rapid'
                 if str2double(gpsweek) >= 2238
                     file = {['IGS0OPSRAP_' yyyy doy '0000_01D_01D_ERP.ERP.gz']};
@@ -187,14 +208,17 @@ switch settings.ORBCLK.prec_prod
         
     case 'CODE'
         % no nice overview and no storage for (ultra) rapid products
-        URL_host = 'ftp.aiub.unibe.ch:21';
-        target = {[Path.DATA, 'ERP/', yyyy, '/', doy]};
+        host = 'http://www.aiub.unibe.ch/download/';
+        target = {[Path.DATA, 'ERP/', yyyy, '/', doy '/']};
+        [~, ~] = mkdir(target{1});
         if settings.ORBCLK.MGEX
             URL_folders = {['/CODE_MGEX/CODE/' yyyy, '/']};
             if str2double(gpsweek) >= 2238
                 file = {['COD0MGXFIN_' yyyy doy '0000_01D_12H_ERP.ERP.gz']};   
+                decomp = {['COD0MGXFIN_' yyyy doy '0000_01D_12H_ERP.ERP']};   
             else
                 file = {['COM', gpsweek, dow, '.ERP.Z']};
+                decomp = {['COM', gpsweek, dow, '.ERP']};
             end
         else
             URL_folders = {['/CODE/' yyyy, '/']};
@@ -202,25 +226,40 @@ switch settings.ORBCLK.prec_prod
                 case 'Final'
                     if str2double(gpsweek) >= 2238
                         file = {['COD0OPSFIN_' yyyy doy '0000_01D_01D_ERP.ERP.gz']};
+                        decomp = {['COD0OPSFIN_' yyyy doy '0000_01D_01D_ERP.ERP']};
                     else
                         file = {['COD', gpsweek, dow, '.ERP.Z']};
+                        decomp = {['COD', gpsweek, dow, '.ERP']};
                     end
                     
                 case 'Rapid'
                     URL_folders = {'/CODE/'};
                     file = {['COD0OPSRAP_' yyyy doy '0000_01D_01D_ERP.ERP']};
+                    decomp = {['COD0OPSRAP_' yyyy doy '0000_01D_01D_ERP.ERP']};
                     bool_archive = false;
                     
                 case 'Ultra-Rapid'
                     URL_folders = {'/CODE/'};
                     file = {['COD0OPSULT_' yyyy doy '0000_01D_01D_ERP.ERP']};
+                    decomp = {['COD0OPSULT_' yyyy doy '0000_01D_01D_ERP.ERP']};
                     bool_archive = false;
                     
                 otherwise
                     return
             end
         end
-        
+
+        % download
+        if ~(isfile([target{1} file{1}]) || isfile(decomp{1}))
+            try
+                websave([target{1} file{1}], [host URL_folders{1} file{1}]);
+            catch
+                errordlg('No CODE ERPs found on server!', 'Error');
+            end
+        end
+        download = false;
+        % decompress
+        decompressed = unzip_and_delete(file(1), target(1));
         
     case 'GFZ'
         % https://www.gfz-potsdam.de/en/section/space-geodetic-techniques/topics/gnss-igs-analysis-center/
@@ -317,6 +356,16 @@ switch settings.ORBCLK.prec_prod
             else
                 URL_folders_2 = {['/archive/gnss/products/mgex/' gpsweek]};
             end
+            % try ftps://bdspride.com
+            target = {[Path.DATA, 'ERP/', yyyy, '/', doy]};
+            [~, ~] = mkdir(target{1});
+            URL_host_1 = 'ftps://bdspride.com/';
+            URL_folders_1 = ['wum/' gpsweek '/'];
+            file_status = CurlDownload([target{1} '/' file{1}], [URL_host_1 URL_folders_1 file{1}], false);
+            if file_status
+                decompressed = unzip_and_delete(file(1), target(1));
+                download = false;
+            end
         else
             fprintf(2, 'WUM ERP file is not implemented!')
             return
@@ -333,13 +382,32 @@ switch settings.ORBCLK.prec_prod
                     file    = {['HUS0MGXRAP_' yyyy doy '0000_01D_01D_ERP.ERP.gz']};
                 case 'Ultra-Rapid'
                     file    = {['HUS0MGXULT_' yyyy doy '0000_01D_01D_ERP.ERP.gz']};
-            end           
+            end
         else
             fprintf(2, 'HUST ERP file is not implemented!')
             return
         end
-        
-        
+
+
+    case 'WCC'
+        URL_host_1 = 'ftps://bdspride.com/';
+        URL_folders_1 = ['wcc/' gpsweek '/'];
+        file{1} = ['WCC0OPSFIN_' yyyy doy '0000_01D_01D_ERP.ERP.gz'];
+        % download
+        target = {[Path.DATA, 'ERP/', yyyy, '/', doy]};
+        [~, ~] = mkdir(target{1});
+        file_status = CurlDownload([target{1} '/' file{1}], [URL_host_1 URL_folders_1 file{1}], true);
+        % decompress
+        if file_status
+            decompressed = unzip_and_delete(file(1), target(1));
+        end
+        % check if file exists 
+        if ~isfile(decompressed{1})
+            errordlg({['Downloading ' settings.ORBCLK.prec_prod ' ERP file failed.'] 'Polar Tides correction is not applied.'}, 'Error');
+        end
+        % save filepath for read-in
+        settings.ORBCLK.file_erp = decompressed{1};
+        return
         
     otherwise
        return

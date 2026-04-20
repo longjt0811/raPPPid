@@ -1,13 +1,12 @@
-function [dT_clk, noclock] = satelliteClockBrdc(Ttr, Eph, isGPS, isGLO, isGAL, isBDS, isQZSS, k, corr2brdc, corr_clk)
+function [dT_clk, noclock] = satelliteClockBrdc(Ttr, Eph, isGPS, isGLO, isGAL, isBDS, isQZSS, corr2brdc, corr_clk)
 % Calculate satellite clock from navigation message and apply corrections
 % from a real-time correction stream.
 %
 % INPUT:
 % 	Ttr         transmission time (GPStime)
-% 	Eph         matrix, read-in of navigation message
-% 	k           column of ephemerides according to time and sv
+% 	Eph         30x1, navigation message for current satellite (https://vievswiki.geo.tuwien.ac.at/raPPPid/General/InputData)
 %   corr2brdc   boolean, from settings.ORBCLK.corr2brdc_clk
-%   corr_clk    clock correction to broadcast message
+%   corr_clk    5x1, clock correction to broadcast message [timestamp, a0, a1, a2, IOD]
 %
 % OUTPUT:
 %   dT_clk      satellite clock correction, [s]
@@ -17,28 +16,29 @@ function [dT_clk, noclock] = satelliteClockBrdc(Ttr, Eph, isGPS, isGLO, isGAL, i
 %   2025/02/12, MFWG: added missing conversion [mm/..] to [m/..] (corr2brdc)
 %   2025/09/13, MFWG: change structure
 %   2025/10/02, MFWG: separate from satelliteClock.m
+%   2025/11/10, MFWG: input changed
 %
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
 
 
 noclock = false;
-dT_clk = [];
+dT_clk = 0;
 
 
 % coefficients for navigation clock correction
 if isGPS || isGAL || isBDS
-    toc = Eph(21,k);
-    a2 = Eph(2,k);        a1 = Eph(20,k);        a0 = Eph(19,k);
+    toc = Eph(21);
+    a2 = Eph(2);        a1 = Eph(20);        a0 = Eph(19);
     Ttr_ = Ttr;
     if isBDS; Ttr_ = Ttr - Const.BDST_GPST; end      % convert GPST to BDT
     dT = check_t(Ttr_ - toc);           % time difference between transmission time and time of clock
     dT_clk = a2*dT^2 + a1*dT + a0;      % 2nd degree polynomial clock correction
 elseif isGLO
-    toe = Eph(18,k);    % epoch of ephemerides converted into GPS sow (only leap seconds accounted)
+    toe = Eph(18);    % epoch of ephemerides converted into GPS sow (only leap seconds accounted)
     dT = check_t(Ttr - toe);
     % dT_clk = (-Tau_N) + Gamma_N + (-Tau_C)
-    dT_clk = + Eph(2,k) + Eph(3,k)*dT + Eph(16,k);
+    dT_clk = + Eph(2) + Eph(3)*dT + Eph(16);
 end
 
 % --- Clock correction with correction stream

@@ -449,7 +449,7 @@ t_cb = t_cb(~nodata_c);
 t_pb = t_pb(~nodata_p);
 % save code biases and exclude epochs without data (-> all-zero-epochs)
 save_struct.cbias = [];
-for i = 1:length(CODE)
+for i = 1:size(CODE, 1)
     field = strcat('C', CODE(i,:));             % name of bias-type
     % take correct dimension from c_bias-matrix and remove all-zero-epochs
     save_struct.cbias.(field) = c_bias(~nodata_c,:,i);	

@@ -115,4 +115,4 @@ settings.PROC.timeFrame     = [ROW{18}, ROW{19}];
 settings.PROC.timeSpan_format_epochs = true;
 settings.PROC.timeSpan_format_SOD = false;
 settings.PROC.timeSpan_format_HOD = false;
-settings = manipulateProcessingName(settings);
+settings.PROC.name = replacePseudoCode(settings, settings.PROC.name_GUI, true);

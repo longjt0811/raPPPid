@@ -60,28 +60,43 @@ switch settings.IONO.file_source
     case 'CODE'
         switch settings.IONO.type_ionex
             case 'final'
-                URL_host = 'ftp.aiub.unibe.ch:21';
+                host = 'http://www.aiub.unibe.ch/download/';
                 URL_folder = {['/CODE/' yyyy, '/']};
                 if str2double(gpsweek) >= 2238
                     file = {['COD0OPSFIN_' yyyy doy '0000_01D_01H_GIM.INX.gz']};
+                    decomp = {['COD0OPSFIN_' yyyy doy '0000_01D_01H_GIM.INX']};
                 else
                     file = {['CODG' doy '0.' yyyy(3:4) 'I.Z']};
+                    decomp = {['CODG' doy '0.' yyyy(3:4) 'I']};
                 end
             case 'rapid'
                 URL_host = 'igs.ign.fr:21';
                 URL_folder = {['/pub/igs/products/ionosphere/', yyyy, '/', doy, '/']};
                 file = {['corg' doy '0.' yyyy(3:4) 'i.Z']};
+                decomp = {['corg' doy '0.' yyyy(3:4) 'i']};
             otherwise
                 errordlg(['Selected Ionex-Type: "' settings.IONO.type_ionex '" not found! "Final" is tried.'], 'Error');
                 file = {['CODG' doy '0.' yyyy(3:4) 'i.Z']};
+                decomp = {['CODG' doy '0.' yyyy(3:4) 'i']};
         end
-        % download, unzip, save file-path
-        file_status = ftp_download(URL_host, URL_folder{1}, file{1}, target{1}, true);
+        % download
+        if ~(isfile([target{1} file{1}]) || isfile(decomp{1}))
+            try
+                websave([target{1} file{1}], [host URL_folder{1} file{1}]);
+                file_status = 1;
+            catch
+                file_status = 0;
+            end
+        else
+            file_status = 1;
+        end
+        % unzip
         if file_status == 1   ||   file_status == 2
             unzip_and_delete(file, target);
         elseif file_status == 0
             errordlg(['No Ionex file from ' settings.IONO.file_source ' found on server. Please specify different source!'], 'Error');
         end
+        % save file-path
         [~,file{1},~] = fileparts(file{1});   % remove the zip file extension
         
     case 'ESA'

@@ -65,13 +65,8 @@ global STOP_CALC;	% for stopping calculations before last epoch, set to zero in 
 settings.INPUT.use_GNSS = settings.INPUT.use_GPS + settings.INPUT.use_GLO + settings.INPUT.use_GAL + settings.INPUT.use_BDS + settings.INPUT.use_QZSS;
 
 % check which biases are applied
-bool_sinex = strcmp(settings.BIASES.phase(1:3), 'WHU') || ...
-    any(strcmp(settings.BIASES.code, {'CAS Multi-GNSS DCBs','CAS Multi-GNSS OSBs','DLR Multi-GNSS DCBs','CODE OSBs','CNES OSBs','CODE MGEX','WUM MGEX','CNES MGEX','GFZ MGEX','HUST MGEX','CNES postprocessed'}));
-bool_manual_sinex = strcmp(settings.BIASES.code, 'manually') && settings.BIASES.code_manually_Sinex_bool;
-bool_CODE_dcb = strcmp(settings.BIASES.code, 'CODE DCBs (P1P2, P1C1, P2C2)') || ... 
-    (strcmp(settings.BIASES.code, 'manually') && settings.BIASES.code_manually_DCBs_bool);
-bool_CNES_archive = settings.ORBCLK.bool_precise~=1   &&   strcmpi(settings.ORBCLK.CorrectionStream, 'CNES Archive');
-bool_brdc_TGD = strcmp(settings.BIASES.code, 'Broadcasted TGD');
+[bool_sinex, bool_manual_sinex, bool_CODE_dcb, bool_archive_biases, bool_brdc_TGD] = CheckBiasSource(settings);
+
 
 
 
@@ -126,6 +121,7 @@ init_ambiguities = NaN(3, 410);     % columns = satellites, rows = frequencies
 
 % Creating q for loop of epoch calculations, q is used for indexing the epochs
 q_range = 1:settings.PROC.epochs(2)-settings.PROC.epochs(1)+1; % one epoch more than the settings in GUI
+q_switch = q_range(end);    % epoch of filter direction change
 
 % manipulate the loop depending on the filter's direction
 if strcmp(settings.ADJ.filter.direction, 'Fwd-Bwd')
@@ -134,10 +130,13 @@ if strcmp(settings.ADJ.filter.direction, 'Fwd-Bwd')
 elseif strcmp(settings.ADJ.filter.direction, 'Bwd-Fwd')
     % add reversed before the forwards run
     q_range = [fliplr(q_range) q_range(2:end)];
+    q_switch = 1; 
 elseif strcmp(settings.ADJ.filter.direction, 'Backwards')
     % reverse the loop for backwards filtering
     q_range = fliplr(q_range);
+    q_switch = 1; 
 end
+settings.PROC.q_range = q_range;        % save q_range into settings
 
 % time which is needed for reading all input data and going to start-epoch
 read_time = toc(tStart);
@@ -238,10 +237,15 @@ for q = q_range         % loop over epochs
         end
         Epoch = findEphCorr2Brdc(Epoch, input, settings);
     end 
-    
+
     % ----- prepare observations -----
     [Epoch, obs] = prepareObservations(settings, obs, Epoch);
-    
+
+    % --- perform multipath detection ---
+    if settings.OTHER.mp_detection
+        [Epoch] = checkMultipath(Epoch, settings, obs.use_column, obs.interval, Adjust.reset_time);
+    end
+
     % ----- check, if enough satellites -----
     bool_enough_sats = check_min_sats(settings.INPUT.use_GPS, settings.INPUT.use_GLO, settings.INPUT.use_GAL, settings.INPUT.use_BDS, settings.INPUT.use_QZSS, ...
         sum(Epoch.gps), sum(Epoch.glo), sum(Epoch.gal), sum(Epoch.bds), sum(Epoch.qzss), settings.INPUT.use_GNSS);
@@ -260,21 +264,6 @@ for q = q_range         % loop over epochs
         continue
     end
 
-    % number of satellites in current epoch
-    Epoch.no_sats = numel(Epoch.sats);
-    % frequency
-    f1 = Epoch.gps .* Const.GPS_F(strcmpi(DEF.freq_GPS_names,settings.INPUT.gps_freq{1})) + Epoch.gal .* Const.GAL_F(strcmpi(DEF.freq_GAL_names,settings.INPUT.gal_freq{1})) + Epoch.bds .* Const.BDS_F(strcmpi(DEF.freq_BDS_names,settings.INPUT.bds_freq{1})) + Epoch.qzss .* Const.QZSS_F(strcmpi(DEF.freq_QZSS_names,settings.INPUT.qzss_freq{1}) );
-    f2 = Epoch.gps .* Const.GPS_F(strcmpi(DEF.freq_GPS_names,settings.INPUT.gps_freq{2})) + Epoch.gal .* Const.GAL_F(strcmpi(DEF.freq_GAL_names,settings.INPUT.gal_freq{2})) + Epoch.bds .* Const.BDS_F(strcmpi(DEF.freq_BDS_names,settings.INPUT.bds_freq{2})) + Epoch.qzss .* Const.QZSS_F(strcmpi(DEF.freq_QZSS_names,settings.INPUT.qzss_freq{2}) );
-    f3 = Epoch.gps .* Const.GPS_F(strcmpi(DEF.freq_GPS_names,settings.INPUT.gps_freq{3})) + Epoch.gal .* Const.GAL_F(strcmpi(DEF.freq_GAL_names,settings.INPUT.gal_freq{3})) + Epoch.bds .* Const.BDS_F(strcmpi(DEF.freq_BDS_names,settings.INPUT.bds_freq{3})) + Epoch.qzss .* Const.QZSS_F(strcmpi(DEF.freq_QZSS_names,settings.INPUT.qzss_freq{3}) );
-    f1(Epoch.glo) = Epoch.f1_glo;
-    f2(Epoch.glo) = Epoch.f2_glo;
-    f3(Epoch.glo) = Epoch.f3_glo;
-    Epoch.f1 = f1;   Epoch.f2 = f2;   Epoch.f3 = f3;        
-    % wavelength
-    lam1 = Const.C ./ f1;
-    lam2 = Const.C ./ f2;
-    lam3 = Const.C ./ f3;
-    Epoch.l1 = lam1;   Epoch.l2 = lam2;   Epoch.l3 = lam3;
     % get prn: GPS [0-99], Glonass [100-199], Galileo [200-299], BeiDou [300-399], QZSS [410-410]
     prn_Id = Epoch.sats;
     % increase epoch counter
@@ -282,16 +271,7 @@ for q = q_range         % loop over epochs
     
     % --- check C/N0 and signal strength threshold  ---
     [Epoch] = check_SNR(Epoch, settings, obs.use_column);
-    
-    % --- perform multipath detection ---
-    if settings.OTHER.mp_detection
-        [Epoch] = checkMultipath(Epoch, settings, obs.use_column, obs.interval, Adjust.reset_time);
-    end
-    
-    % --- insert artificial cycle slip or multipath
-    % Epoch = cycleSlip_articifial(Epoch, obs.use_column);
-    % Epoch = multipath_articifial(Epoch, obs.use_column);
-
+        
     % --- perform Cycle-Slip detection ---
     if contains(settings.PROC.method,'Phase')   &&   (settings.OTHER.CS.l1c1 || settings.OTHER.CS.DF || settings.OTHER.CS.Doppler || settings.OTHER.CS.TimeDifference || settings.PROC.LLI)
         [Epoch] = cycleSlip(Epoch, settings, obs.use_column);
@@ -303,7 +283,7 @@ for q = q_range         % loop over epochs
     end
     
     % --- Adjust phase data to Code to limit the ambiguities ---
-    if strcmpi(settings.PROC.method, 'Code + Phase') && (settings.PROC.AdjustPhase2Code || settings.PROC.bool_rec_clk_jump)
+    if contains(settings.PROC.method, ' + Phase') && (settings.PROC.AdjustPhase2Code || settings.PROC.bool_rec_clk_jump)
         [init_ambiguities, Epoch] = AdjustPhase2Code(Epoch, init_ambiguities);
     end
     
@@ -312,7 +292,7 @@ for q = q_range         % loop over epochs
     if strcmp(settings.ORBCLK.CorrectionStream,'manually') && (settings.BIASES.code_corr2brdc_bool || settings.BIASES.phase_corr2brdc_bool)
         Epoch = apply_corr2brdc_biases(Epoch, settings, input, obs);
     % get from *.bia-file
-    elseif bool_sinex || bool_manual_sinex || bool_CNES_archive
+    elseif bool_sinex || bool_manual_sinex || bool_archive_biases
         Epoch = apply_biases(Epoch, obs, settings);
     % get from *.DCB-file
     elseif bool_CODE_dcb
@@ -349,6 +329,11 @@ for q = q_range         % loop over epochs
     if settings.EXP.obs_epochheader; obs.epochheader(q) = cellstr(Epoch.rinex_header); end
     Epoch.delta_windup = model.delta_windup;        % [cycles], for calculation of Wind-Up correction in next epoch
       
+    % check if second run (e.g., backward) of filter starts in next epoch
+    if q == q_switch
+        Epoch = reverseFilterDirection(Epoch, settings);
+    end
+
     % update waitbar
     if bool_print && mod(q,q_update) == 0 && ishandle(WBAR)
         q_counter = q_counter + q_update;

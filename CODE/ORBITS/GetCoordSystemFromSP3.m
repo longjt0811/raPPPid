@@ -2,10 +2,10 @@ function coordsyst = GetCoordSystemFromSP3(path_sp3)
 % This function reads the first line of an orbit file to determine the
 % coordinate system (of the satellite orbit and, consequently, the
 % coordinates estimated in the PPP)
-% 
+%
 % INPUT:
 %   path_sp3        string, path to sp3 file
-% OUTPUT: 
+% OUTPUT:
 %	coordsyst       string, coordinate system defined in the orbit file
 %
 % Revision:
@@ -18,10 +18,10 @@ function coordsyst = GetCoordSystemFromSP3(path_sp3)
 if isempty(path_sp3); coordsyst = 'brdc'; return; end
 
 % get first line of orbit file
- fid = fopen(path_sp3, 'r');
- if fid == -1; coordsyst = ''; return; end      % opening file failed
- firstline = fgetl(fid);
- fclose(fid);
+fid = fopen(path_sp3, 'r');
+if fid == -1; coordsyst = ''; return; end      % opening file failed
+firstline = fgetl(fid);
+fclose(fid);
 
 % determine coordinate system
 coordsyst = firstline(47:51);

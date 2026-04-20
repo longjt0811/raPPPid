@@ -23,7 +23,6 @@ function [Epoch, Adjust] = PPPAR_IF(Adjust, Epoch, settings, input, obs, model)
 % get some variables
 q = Epoch.q;                            % epoch number of processing
 q0 = Adjust.fixed_reset_epochs(end);    % epoch number of last reset
-q_hmw = q0:q;
 NO_PARAM = Adjust.NO_PARAM;
 no_sats = numel(Epoch.sats);
 WLNL_corr = strcmp(settings.BIASES.phase, 'SGG FCBs') || strcmp(settings.BIASES.phase, 'TUW (not implemented)');
@@ -32,6 +31,14 @@ b_NL = zeros(no_sats,1);
 % get Hatch-Melbourne-Wübbena linear combination
 HMW_12 = Adjust.HMW_12;
 HMW_23 = Adjust.HMW_23;
+
+% determine relevant epochs of HMW 
+q_hmw = q0:q;
+if Epoch.bool_2nd
+    % take all HMW epochs in seconds run
+    q_hmw = 1:size(HMW_12,1);
+end
+
 
 
 if settings.INPUT.num_freqs == 2
@@ -76,9 +83,10 @@ if settings.INPUT.num_freqs == 2
     
     % --- Wide-Lane-Fixing-Fixing procedure ---
     % with moving average and HMW LC from all epochs, same for TUW-UPDs and CNES-UPDs
-    if Adjust.fix_now(1)
-        Epoch = WL_fixing(HMW_12(q_hmw,:), Epoch, model.el, obs.interval, settings);
-        
+    if Adjust.fix_now(1)       
+        Epoch.WL_12 = HMW_fixing(HMW_12(q_hmw,:), Epoch, model.el, obs.interval, settings, Epoch.WL_12);
+        Epoch.NL_12(isnan(Epoch.WL_12)) = NaN;      % released WL -> set NL to NaN
+
         % --- Narrow-Lane-Fixing Procedure ---
         if Adjust.fix_now(2)
             Epoch = NL_fixing_IF(Epoch, Adjust, b_WL, b_NL, model.el, settings);

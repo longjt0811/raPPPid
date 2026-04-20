@@ -19,6 +19,7 @@ proc_meth = handles.popupmenu_process.String(handles.popupmenu_process.Value);
 bool_satellite = handles.checkbox_satellite.Value;
 iono_model = handles.buttongroup_models_ionosphere.SelectedObject.String;
 bool_DCM = strcmp(iono_model, 'Estimate, decoupled clock');
+kinematic = handles.checkbox_kinematic.Value;
 
 GPS_on = handles.checkbox_GPS.Value;
 GLO_on = handles.checkbox_GLO.Value;
@@ -551,23 +552,81 @@ if strcmpi(handles.uipanel_otherCorrections.Visible, 'on')
     handles.checkbox_LLI.Enable = onoff;            % LLI
     
 
-    % Multipath detection
-    onoff = 'Off';
-    if handles.checkbox_mp_detection.Value; onoff = 'On'; end
-    handles.text_mp_cooldown.Enable = onoff;
-    handles.edit_mp_cooldown.Enable = onoff;
-    handles.text_mp_thresh.Enable = onoff;
-    handles.edit_mp_thresh.Enable = onoff;
-    handles.text_mp_degree.Enable = onoff;
-    handles.edit_mp_degree.Enable = onoff;
-
-
+    % en/disable Antenna Reference Point correction in the case of kinematic processing
+    if kinematic
+        handles.checkbox_rec_ARP.Enable = 'off';
+    else
+        handles.checkbox_rec_ARP.Enable = 'on';
+    end
 
 
     % ||| implement at some point
     
 end
 
+
+
+%% Kinematic
+if strcmpi(handles.uipanel_kinematic.Visible, 'on')
+
+
+
+    % Offsets
+    if kinematic
+        handles.checkbox_offsets.Enable   = 'On';
+        handles.uibuttongroup_orientation_mode.Enable = 'On';
+    else
+        handles.checkbox_offsets.Enable   = 'Off';
+        handles.uibuttongroup_orientation_mode.Enable = 'Off';
+    end
+    if kinematic && handles.checkbox_offsets.Value
+        handles.text_offset_x.Enable  = 'On';
+        handles.text_offset_y.Enable  = 'On';
+        handles.text_offset_z.Enable  = 'On';
+        handles.edit_offset_x.Enable  = 'On';
+        handles.edit_offset_y.Enable  = 'On';
+        handles.edit_offset_z.Enable  = 'On';
+    else
+        handles.text_offset_x.Enable  = 'Off';
+        handles.text_offset_y.Enable  = 'Off';
+        handles.text_offset_z.Enable  = 'Off';
+        handles.edit_offset_x.Enable  = 'Off';
+        handles.edit_offset_y.Enable  = 'Off';
+        handles.edit_offset_z.Enable  = 'Off';
+    end
+
+    % Satellite PPP
+    if bool_satellite && kinematic
+        handles.text_sat_id.Visible    = 'On';
+        handles.edit_sat_id.Visible    = 'On';
+        handles.text_sat_mass.Visible  = 'On';
+        handles.edit_sat_mass.Visible  = 'On';
+        handles.text_sat_area.Visible  = 'On';
+        handles.edit_sat_area.Visible  = 'On';
+        handles.text_sat_drag.Visible  = 'On';
+        handles.edit_sat_drag.Visible  = 'On';
+        handles.text_sat_solar.Visible = 'On';
+        handles.edit_sat_solar.Visible = 'On';
+        handles.radiobutton_or_yaw.Enable	= 'On';
+        handles.radiobutton_or_earth.Enable	= 'On';
+        handles.radiobutton_or_orbex.Enable	= 'On';
+    else
+        handles.text_sat_id.Visible    = 'Off';
+        handles.edit_sat_id.Visible    = 'Off';
+        handles.text_sat_mass.Visible  = 'Off';
+        handles.edit_sat_mass.Visible  = 'Off';
+        handles.text_sat_area.Visible  = 'Off';
+        handles.edit_sat_area.Visible  = 'Off';
+        handles.text_sat_drag.Visible  = 'Off';
+        handles.edit_sat_drag.Visible  = 'Off';
+        handles.text_sat_solar.Visible = 'Off';
+        handles.edit_sat_solar.Visible = 'Off';
+        handles.radiobutton_or_yaw.Enable	= 'Off';
+        handles.radiobutton_or_earth.Enable	= 'Off';
+        handles.radiobutton_or_orbex.Enable	= 'Off';
+    end
+
+end
 
 
 %% Biases
@@ -739,7 +798,7 @@ if strcmpi(handles.uipanel_adjustment.Visible, 'on')
     end
 
     % estimation of velocity
-    if bool_satellite
+    if bool_satellite || kinematic || contains(proc_meth, '+ Doppler')
         handles.text_velocity.Enable = 'On';
         handles.edit_filter_velocity_sigma0.Enable = 'On';
         handles.edit_filter_velocity_Q.Enable = 'On';
@@ -867,8 +926,23 @@ if strcmpi(handles.uipanel_adjustment.Visible, 'on')
         set(handles.popupmenu_filter_dcbs_dynmodel, 'Enable', 'Off');
     end
     
+    % receiver clock drift
+    if contains(proc_meth, '+ Doppler')
+        set(handles.text_rec_clk_drift, 	           'Enable', 'On');
+        set(handles.edit_filter_rec_clk_drift_sigma0,  'Enable', 'On');
+        set(handles.edit_filter_rec_clk_drift_Q, 	   'Enable', 'On');
+        set(handles.text_rec_clk_drift_m, 	           'Enable', 'On');
+        set(handles.popupmenu_filter_rec_clk_drift_dynmodel, 'Enable', 'On');
+    else
+        set(handles.text_rec_clk_drift, 	           'Enable', 'Off');
+        set(handles.edit_filter_rec_clk_drift_sigma0,  'Enable', 'Off');
+        set(handles.edit_filter_rec_clk_drift_Q, 	   'Enable', 'Off');
+        set(handles.text_rec_clk_drift_m, 	           'Enable', 'Off');
+        set(handles.popupmenu_filter_rec_clk_drift_dynmodel, 'Enable', 'Off');
+    end
+
     % Float ambiguities
-    if strcmp(proc_meth, 'Code + Phase')
+    if contains(proc_meth, '+ Phase')
         set(handles.text_float_ambiguities, 	           'Enable', 'On');
         set(handles.edit_filter_ambiguities_sigma0,        'Enable', 'On');
         set(handles.edit_filter_ambiguities_Q, 	           'Enable', 'On');
@@ -906,33 +980,6 @@ if strcmpi(handles.uipanel_adjustment.Visible, 'on')
         set(handles.text_iono,                      'Enable', 'Off');
         set(handles.text_iono_m,                    'Enable', 'Off');
     end
-    
-    % Satellite PPP
-    if bool_satellite
-		handles.text_sat_id.Visible    = 'On';
-		handles.edit_sat_id.Visible    = 'On';
-        handles.text_sat_mass.Visible  = 'On';
-        handles.edit_sat_mass.Visible  = 'On';
-        handles.text_sat_area.Visible  = 'On';
-        handles.edit_sat_area.Visible  = 'On';
-        handles.text_sat_drag.Visible  = 'On';
-        handles.edit_sat_drag.Visible  = 'On'; 
-        handles.text_sat_solar.Visible = 'On';
-        handles.edit_sat_solar.Visible = 'On'; 
-        handles.uibuttongroup_orientation_mode.Visible = 'On';
-    else
-		handles.text_sat_id.Visible    = 'Off';
-		handles.edit_sat_id.Visible    = 'Off';	
-        handles.text_sat_mass.Visible  = 'Off';
-        handles.edit_sat_mass.Visible  = 'Off';
-        handles.text_sat_area.Visible  = 'Off';
-        handles.edit_sat_area.Visible  = 'Off';
-        handles.text_sat_drag.Visible  = 'Off';
-        handles.edit_sat_drag.Visible  = 'Off'; 
-        handles.text_sat_solar.Visible = 'Off';
-        handles.edit_sat_solar.Visible = 'Off';   
-        handles.uibuttongroup_orientation_mode.Visible = 'Off';
-    end
 
 end
 
@@ -958,6 +1005,33 @@ if strcmpi(handles.uipanel_weighting.Visible, 'on')
         set(handles.edit_constraint_until,          'Visible','On');
         set(handles.text_constraint_decrease,       'Visible','On');
         set(handles.edit_constraint_decrease,       'Visible','On');
+    end
+
+    % Check if code observations are used
+    set(handles.text76,                         'Enable', 'Off');
+    set(handles.edit_Std_CA_Code,               'Enable', 'Off');
+    if contains(proc_meth, 'Code')
+        % phase observations are processed
+        set(handles.text76,                     'Enable', 'On');
+        set(handles.edit_Std_CA_Code,           'Enable', 'On');
+    end
+
+    % Check if phase observations are used
+    set(handles.text81,                         'Enable', 'Off');
+    set(handles.edit_Std_Phase,                 'Enable', 'Off');
+    if contains(proc_meth, '+ Phase')
+        % phase observations are processed
+        set(handles.text81,                     'Enable', 'On');
+        set(handles.edit_Std_Phase,             'Enable', 'On');
+    end
+
+    % Check if Doppler observations are used
+    set(handles.text_std_doppler,               'Enable', 'Off');
+    set(handles.edit_Std_Doppler,               'Enable', 'Off');
+    if contains(proc_meth, '+ Doppler')
+        % Doppler observations are processed
+        set(handles.text_std_doppler,           'Enable', 'On');
+        set(handles.edit_Std_Doppler,           'Enable', 'On');
     end
     
     % GNSS weighting
@@ -1093,7 +1167,21 @@ end
 
 %% Export Options
 if strcmpi(handles.uipanel_export.Visible, 'on')
-        
+
+    % storeData
+    handles.checkbox_exp_storeData.Enable    = 'on';
+    handles.checkbox_exp_storeData_vtec.Enable    = 'on';
+    handles.checkbox_exp_storeData_iono_mf.Enable = 'on';
+    handles.checkbox_exp_storeData_mp_1_2.Enable  = 'on';
+    handles.checkbox_exp_storeData_sat_status.Enable    = 'on';
+    % obs
+    handles.checkbox_exp_obs_bias.Enable    = 'on';
+    handles.checkbox_exp_obs_epochheader.Enable    = 'on';
+    % satellites
+    handles.checkbox_exp_satellites.Enable    = 'on';
+    handles.checkbox_exp_satellites_D.Enable    = 'on';
+
+
     % Variables - storeData
     if handles.checkbox_exp_storeData.Value
         handles.checkbox_exp_storeData_vtec.Enable    = 'on';
@@ -1114,8 +1202,21 @@ if strcmpi(handles.uipanel_export.Visible, 'on')
     end 
 
     
-    
-    
+    if ~handles.checkbox_exp_data4plot.Value
+        % storeData
+        handles.checkbox_exp_storeData.Enable    = 'off';
+        handles.checkbox_exp_storeData_vtec.Enable    = 'off';
+        handles.checkbox_exp_storeData_iono_mf.Enable = 'off';
+        handles.checkbox_exp_storeData_mp_1_2.Enable  = 'off';
+        handles.checkbox_exp_storeData_sat_status.Enable    = 'off';
+        % obs
+        handles.checkbox_exp_obs_bias.Enable    = 'off';
+        handles.checkbox_exp_obs_epochheader.Enable    = 'off';
+        % satellites
+        handles.checkbox_exp_satellites.Enable    = 'off';
+        handles.checkbox_exp_satellites_D.Enable    = 'off';
+    end
+
     
     
     % ||| implement at some point
@@ -1141,11 +1242,17 @@ if strcmpi(handles.uipanel_single_plot.Visible, 'on')
     else
         onoff = 'On';
         % load settings for en/disabling checkboxes of plots which are (not) possible
-        if ~isempty(handles.paths.plotfile) && exist(handles.paths.plotfile, 'file')
-            load(handles.paths.plotfile, 'settings');
+        if ~isempty(handles.paths.plotfile) && isfolder(handles.paths.plotfile)
+            if isfile([handles.paths.plotfile '/settings.mat'])
+                load([handles.paths.plotfile '/settings.mat'], 'settings');
+            elseif isfile([handles.paths.plotfile '/data4plot.mat'])
+                load([handles.paths.plotfile '/data4plot.mat'], 'settings');
+            else
+                settings = recover_settings(handles.paths.plotfile);
+            end
             handles = disable_plot_checkboxes(handles, settings);
         else
-            % plot file does not exist (anymore), reset single plot panel
+            % plot folder does not exist (anymore), reset single plot panel
             handles = en_disable_AllPlotCheckboxes(handles, 'off');
             handles.paths.plotfile = '';
             set(handles.edit_x_true,  'String', '');

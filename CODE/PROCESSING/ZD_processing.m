@@ -29,9 +29,9 @@ function [Adjust, Epoch, model, obs] = ZD_processing(Adjust, Epoch, settings, in
 % preparation of parameter estimation (depending on PPP model)
 switch settings.IONO.model
     case {'Estimate with ... as constraint', 'Estimate'}
-        [Epoch, Adjust] = adjPrep_iono(settings, Adjust, Epoch, Epoch.old.sats, obs);
+        [Epoch, Adjust] = adjPrep_iono(settings, Adjust, Epoch, Epoch.old.sats, obs, input);
     case 'Estimate, decoupled clock'
-        [Epoch, Adjust] = adjPrep_DCM(settings, Adjust, Epoch, Epoch.old.sats, obs);
+        [Epoch, Adjust] = adjPrep_DCM(settings, Adjust, Epoch, Epoch.old.sats, obs, input);
     otherwise
         [Epoch, Adjust] = adjPrep_ZD(settings, Adjust, Epoch, Epoch.old.sats, obs, input);
 end
@@ -50,7 +50,7 @@ if settings.AMBFIX.bool_AMBFIX && ~strcmp(settings.IONO.model, 'Estimate, decoup
     if Adjust.fix_now(1)
         
         % --- check which satellites are fixable
-        Epoch.fixable = CheckSatellitesFixable(Epoch, settings, model, input);
+        Epoch = CheckSatellitesFixable(Epoch, settings, model, input);
         
         % --- choose reference satellite for fixing ---
         [Epoch, Adjust] = handleRefSats(Epoch, model.el, settings, Adjust);
@@ -76,7 +76,7 @@ elseif settings.AMBFIX.bool_AMBFIX
     % Decoupled Clock Model: integer ambiguity fixing and fixed solution
 
     % check which satellites are fixable
-    Epoch.fixable = CheckSatellitesFixable(Epoch, settings, model, input);
+    Epoch = CheckSatellitesFixable(Epoch, settings, model, input);
     % fix ambiguities and calculate fixed solution
     [Epoch, Adjust] = PPPAR_DCM(Adjust, Epoch, settings);
 

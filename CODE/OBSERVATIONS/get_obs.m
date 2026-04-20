@@ -8,7 +8,10 @@ function [Epoch] = get_obs(Epoch, obs, settings)
 % 	obs   			struct, observations and corresponding data
 %	settings        struct, settings from GUI
 % OUTPUT:
-% 	Epoch:      updated, with .C1, .L2, .S3, ...
+% 	Epoch:      updated fields: 
+%                   .sats, .obs
+%               new fields: 
+%                   .C1, .L1, .D1, .S1, ...     [m], [m], [m/s], or [db.Hz]
 %
 %   Revision:
 %   23 Jan 2020, MFG:  changing satellite exclusion depending on PPP model
@@ -33,10 +36,10 @@ Epoch.C1 = []; Epoch.C2 = []; Epoch.C3 = [];
 Epoch.S1 = []; Epoch.S2 = []; Epoch.S3 = [];
 Epoch.D1 = []; Epoch.D2 = []; Epoch.D3 = [];
 % check if phase measurements have to be converted to meters
-bool_m = settings.INPUT.rawDataAndroid;         % already in [m]
+bool_unit_m = settings.INPUT.rawDataAndroid;         % phase observations already in [m], Doppler shift already in [m/s]
 % check processed PPP model
 code_only = strcmpi(settings.PROC.method,'Code Only');
-doppler = contains(settings.PROC.method, 'Doppler');
+doppler = contains(settings.PROC.method, '+ Doppler');
 GRAPHIC = strcmpi(settings.IONO.model,'GRAPHIC');
 IF_LC_2fr_1x = strcmpi(settings.IONO.model,'2-Frequency-IF-LCs') & settings.INPUT.num_freqs == 2;
 IF_LC_2fr_2x = strcmpi(settings.IONO.model,'2-Frequency-IF-LCs') & settings.INPUT.num_freqs == 3;
@@ -54,7 +57,7 @@ if settings.INPUT.use_GPS
     D1 = obs.use_column{1,10}; D2 = obs.use_column{1,11}; D3 = obs.use_column{1,12};
     % perform check and get observations
     lambda_G = Const.GPS_L(idx_frqs_gps);
-    [Epoch] = CheckAndGetObs(Epoch, C1, C2, C3, L1, L2, L3, S1, S2, S3, D1, D2, D3, bool_m,...
+    [Epoch] = CheckAndGetObs(Epoch, C1, C2, C3, L1, L2, L3, S1, S2, S3, D1, D2, D3, bool_unit_m,...
     Epoch.gps, lambda_G, code_only, doppler, IF_LC_2fr_1x, IF_LC_2fr_2x, IF_LC_3fr, no_LC, GRAPHIC, num_freq);
 end
 
@@ -144,29 +147,30 @@ if settings.INPUT.use_GLO
     Epoch.qzss(remove_sat) = [];
     Epoch.other_systems(remove_sat) = [];
         
-    % Get observations from observation matrix 
-    
+    % wavelengths [m]
     lambda_1 = Const.C ./ Epoch.f1_glo;
     lambda_2 = Const.C ./ Epoch.f2_glo;
     lambda_3 = Const.C ./ Epoch.f3_glo;
-    if bool_m     % check if phase observation have to be converted to [m]
+    if bool_unit_m     % check if phase observations and Doppler shifts are already in [m]
         lambda_1(:) = 1; lambda_2(:) = 1; lambda_3(:) = 1;
     end
+
+    % Get observations from observation matrix 
     if ~code_only
         Epoch.L1 = [Epoch.L1; Epoch.obs(Epoch.glo,L1) .* lambda_1];     % [m]
         Epoch.L2 = [Epoch.L2; Epoch.obs(Epoch.glo,L2) .* lambda_2]; 	% [m]
         Epoch.L3 = [Epoch.L3; Epoch.obs(Epoch.glo,L3) .* lambda_3];     % [m]
     end
-    Epoch.C1 = [Epoch.C1; Epoch.obs(Epoch.glo,C1)];
+    Epoch.C1 = [Epoch.C1; Epoch.obs(Epoch.glo,C1)];     % [m]
     Epoch.C2 = [Epoch.C2; Epoch.obs(Epoch.glo,C2)];
     Epoch.C3 = [Epoch.C3; Epoch.obs(Epoch.glo,C3)];
-    Epoch.S1 = [Epoch.S1; Epoch.obs(Epoch.glo,S1)];
+    Epoch.S1 = [Epoch.S1; Epoch.obs(Epoch.glo,S1)];     % [db.Hz]
     Epoch.S2 = [Epoch.S2; Epoch.obs(Epoch.glo,S2)];
     Epoch.S3 = [Epoch.S3; Epoch.obs(Epoch.glo,S3)];
     if doppler
-        Epoch.D1 = [Epoch.D1; Epoch.obs(Epoch.glo,D1)];
-        Epoch.D2 = [Epoch.D2; Epoch.obs(Epoch.glo,D2)];
-        Epoch.D3 = [Epoch.D3; Epoch.obs(Epoch.glo,D3)];
+        Epoch.D1 = [Epoch.D1; Epoch.obs(Epoch.glo,D1) .* lambda_1];     % [m/s]
+        Epoch.D2 = [Epoch.D2; Epoch.obs(Epoch.glo,D2) .* lambda_2];     % [m/s]
+        Epoch.D3 = [Epoch.D3; Epoch.obs(Epoch.glo,D3) .* lambda_3];     % [m/s]
     end
     
     % if 2+ frequencies are processed but any observation type has only one 
@@ -218,7 +222,7 @@ if settings.INPUT.use_GAL
     D1 = obs.use_column{3,10}; D2 = obs.use_column{3,11}; D3 = obs.use_column{3,12};
     % perform check and get observations
     lambda_E = Const.GAL_L(idx_frqs_gal);
-    [Epoch] = CheckAndGetObs(Epoch, C1, C2, C3, L1, L2, L3, S1, S2, S3, D1, D2, D3, bool_m, ...
+    [Epoch] = CheckAndGetObs(Epoch, C1, C2, C3, L1, L2, L3, S1, S2, S3, D1, D2, D3, bool_unit_m, ...
     Epoch.gal, lambda_E, code_only, doppler, IF_LC_2fr_1x, IF_LC_2fr_2x, IF_LC_3fr, no_LC, GRAPHIC, num_freq);
 end
 
@@ -234,7 +238,7 @@ if settings.INPUT.use_BDS
     D1 = obs.use_column{4,10}; D2 = obs.use_column{4,11}; D3 = obs.use_column{4,12};
     % perform check and get observations
     lambda_C = Const.BDS_L(idx_frqs_bds);
-    [Epoch] = CheckAndGetObs(Epoch, C1, C2, C3, L1, L2, L3, S1, S2, S3, D1, D2, D3, bool_m, ...
+    [Epoch] = CheckAndGetObs(Epoch, C1, C2, C3, L1, L2, L3, S1, S2, S3, D1, D2, D3, bool_unit_m, ...
     Epoch.bds, lambda_C, code_only, doppler, IF_LC_2fr_1x, IF_LC_2fr_2x, IF_LC_3fr, no_LC, GRAPHIC, num_freq);
 end
 
@@ -250,14 +254,14 @@ if settings.INPUT.use_QZSS
     D1 = obs.use_column{5,10}; D2 = obs.use_column{5,11}; D3 = obs.use_column{5,12};
     % perform check and get observations
     lambda_C = Const.QZSS_L(idx_frqs_qzss);
-    [Epoch] = CheckAndGetObs(Epoch, C1, C2, C3, L1, L2, L3, S1, S2, S3, D1, D2, D3, bool_m, ...
+    [Epoch] = CheckAndGetObs(Epoch, C1, C2, C3, L1, L2, L3, S1, S2, S3, D1, D2, D3, bool_unit_m, ...
     Epoch.qzss, lambda_C, code_only, doppler, IF_LC_2fr_1x, IF_LC_2fr_2x, IF_LC_3fr, no_LC, GRAPHIC, num_freq);
 end
 
 
 
 %% ------------------ AUXILIARY FUNCTIONS ------------------
-function [Epoch] = CheckAndGetObs(Epoch, C1, C2, C3, L1, L2, L3, S1, S2, S3, D1, D2, D3, convert_cy2m, ...
+function [Epoch] = CheckAndGetObs(Epoch, C1, C2, C3, L1, L2, L3, S1, S2, S3, D1, D2, D3, bool_unit_m, ...
     bool_gnss, lambda, code_only, doppler, IF_LC_2fr_1x, IF_LC_2fr_2x, IF_LC_3fr, no_LC, GRAPHIC, n)
 % This function checks which satellites have to be removed and removes
 % them. It is used for each GNSS except Glonass (FDMA...).
@@ -331,24 +335,27 @@ add_L1 = Epoch.obs(bool_gnss,L1); add_L2 = Epoch.obs(bool_gnss,L2); add_L3 = Epo
 add_S1 = Epoch.obs(bool_gnss,S1); add_S2 = Epoch.obs(bool_gnss,S2); add_S3 = Epoch.obs(bool_gnss,S3);
 add_D1 = Epoch.obs(bool_gnss,D1); add_D2 = Epoch.obs(bool_gnss,D2); add_D3 = Epoch.obs(bool_gnss,D3);
 
+% check if phase observations and Doppler Shifts are already in [m]
+if bool_unit_m       
+    lambda(:) = 1;    
+end
+
 % Get Code, Phase, Signal Strength  and Doppler from observation matrix
-Epoch.C1 = [Epoch.C1; add_C1];
+Epoch.C1 = [Epoch.C1; add_C1];                  % code [m]
 Epoch.C2 = [Epoch.C2; add_C2];
 Epoch.C3 = [Epoch.C3; add_C3];
-if ~code_only
-    % check if phase observation have to be converted to [m]
-    if convert_cy2m;        lambda(:) = 1;    end
+if ~code_only                                   % phase
     Epoch.L1 = [Epoch.L1; add_L1 .* lambda(1)]; 	% [m]
     Epoch.L2 = [Epoch.L2; add_L2 .* lambda(2)]; 	% [m]
     Epoch.L3 = [Epoch.L3; add_L3 .* lambda(3)]; 	% [m]
 end
-Epoch.S1 = [Epoch.S1; add_S1];
+Epoch.S1 = [Epoch.S1; add_S1];                  % carrier-to-noise density [db.Hz]
 Epoch.S2 = [Epoch.S2; add_S2];
 Epoch.S3 = [Epoch.S3; add_S3];
-if doppler
-    Epoch.D1 = [Epoch.D1; add_D1];
-    Epoch.D2 = [Epoch.D2; add_D2];
-    Epoch.D3 = [Epoch.D3; add_D3];
+if doppler                                      % Doppler shift
+    Epoch.D1 = [Epoch.D1; add_D1 .* lambda(1)];     % [m/s]
+    Epoch.D2 = [Epoch.D2; add_D2 .* lambda(2)];     % [m/s]
+    Epoch.D3 = [Epoch.D3; add_D3 .* lambda(3)];     % [m/s]
 end
 
 % if 2+ frequencies are processed but any observation type has only one 

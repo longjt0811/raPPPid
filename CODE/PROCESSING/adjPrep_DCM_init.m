@@ -1,4 +1,4 @@
-function [Epoch, Adjust] = adjPrep_DCM_init(settings, Adjust, Epoch, obs)
+function [Epoch, Adjust] = adjPrep_DCM_init(settings, Adjust, Epoch, obs, input)
 % This function initializes the parameter vector, covariance matrix, Noise
 % matrix and Transition matrix in epochs without valid float solution, for
 % example, in the first epoch or in epochs after a reset of the solution.
@@ -8,6 +8,7 @@ function [Epoch, Adjust] = adjPrep_DCM_init(settings, Adjust, Epoch, obs)
 %   Adjust          struct, all adjustment relevant data
 %   Epoch           struct, epoch-specific data for current epoch
 %   obs             struct, observation-specific data
+%   input           struct, input data
 % OUTPUT:
 %   Epoch           updated
 %   Adjust          updated
@@ -32,7 +33,7 @@ GAL = settings.INPUT.use_GAL;
 BDS = settings.INPUT.use_BDS;
 QZS = settings.INPUT.use_QZSS;
 % check if velocity is estimated
-velo = settings.ADJ.satellite.bool;
+velo = settings.KINE.bool_kinematic;
 
 % check number of processed frequencies for each GNSS
 n_G = sum(settings.INPUT.gps_freq_idx  <= DEF.freq_GPS(end));
@@ -47,14 +48,15 @@ BDS_3f = BDS && (n_C >= 3);   BDS_2f = BDS && (n_C >= 2);
 QZS_3f = QZS && (n_J >= 3);   QZS_2f = QZS && (n_J >= 2);
 
 % check for processing settings
-bool_code_phase = strcmpi(settings.PROC.method,'Code + Phase');   % true, if code+phase processing
+bool_phase = contains(settings.PROC.method,'+ Phase');   % true, if code+phase processing
+bool_doppler = contains(settings.PROC.method,'+ Doppler'); 
 bool_filter = ~strcmp(FILTER.type, 'No Filter');    % true if filter is enabled
 
 % Get and create some variables
 NO_PARAM = Adjust.NO_PARAM;             % number of estimated parameters
 no_sats = Epoch.no_sats;                % number of satellites of current epoch
 s_f = no_sats*num_freq;               	% #satellites x #frequencies
-no_ambig = s_f * bool_code_phase;       % number of estimated ambiguities
+no_ambig = s_f * bool_phase;       % number of estimated ambiguities
 N_eye = eye(s_f);                       % square unit matrix, size = number of ambiguities
 N_idx = (NO_PARAM+1):(NO_PARAM+s_f);  	% indices of the ambiguities
 
@@ -64,10 +66,20 @@ iono_idx = (1+NO_PARAM+no_ambig):(NO_PARAM+no_ambig+no_sats);
 
 
 %% parameter vector
-param_vec = zeros(NO_PARAM + no_ambig + no_sats, 1);  % 32 + #ambiguities + #ionospheric delays
-param_vec(1:3,1) = settings.INPUT.pos_approx;       % approximate position (X,Y,Z)
+param_vec = zeros(NO_PARAM + no_ambig + no_sats, 1);  % 33 + #ambiguities + #ionospheric delays
+% insert approximate position (X,Y,Z)
+if ~settings.KINE.bool_kinematic
+    param_vec(1:3) = settings.INPUT.pos_approx;
+end
+if settings.KINE.bool_kinematic || norm(param_vec(1:3)) == 0
+    param_vec(1:3) = ApproximatePosition(Epoch, input, obs, settings);
+end
+% insert approximate velocity (X,Y,Z) and receiver clock drift
+if settings.KINE.bool_kinematic && bool_doppler
+    [param_vec(4:6), param_vec(33)] = ApproximateVelocity(Epoch, input, obs, settings, param_vec(1:3));
+end
+% other parameters don´t have/need approximate values so they stay zero
 param_pred = param_vec;         % no prediction in first epoch
-% other parameters don´t have approximate values so they are zero
 
 
 
@@ -108,6 +120,8 @@ if GLO_3f;  param_sigma(29,29) = FILTER.var_DCB;            end
 if GAL_3f;  param_sigma(30,30) = FILTER.var_DCB;            end
 if BDS_3f;  param_sigma(31,31) = FILTER.var_DCB;            end
 if QZS_3f;  param_sigma(32,32) = FILTER.var_DCB;            end
+% receiver clock drift
+if bool_doppler; param_sigma(33,33) = FILTER.var_rclk_drift;     end
 % float ambiguities
 param_sigma(N_idx,N_idx) = N_eye*FILTER.var_amb;
 % ionospheric delay
@@ -151,6 +165,8 @@ if bool_filter
     if GAL_3f;  Noise(30,30) = FILTER.Q_DCB;            end
     if BDS_3f;  Noise(31,31) = FILTER.Q_DCB;            end
     if QZS_3f;  Noise(32,32) = FILTER.Q_DCB;            end
+    % receiver clock drift
+    if bool_doppler; Noise(33,33) = FILTER.Q_rclk_drift;     end
     
     
     
@@ -158,7 +174,11 @@ if bool_filter
     Transition = eye(NO_PARAM);
     
     % dynamic model
-    Transition(1:3,1:3) = eye(3)*FILTER.dynmodel_coord;     % position
+    if FILTER.dynmodel_coord ~= 2   % static or no model
+        Transition(1:3,1:3) = eye(3)*FILTER.dynmodel_coord;     % coordinates
+    else    % linear model with velocity
+        Transition(1:3,1:3) = eye(3);
+    end
     Transition(4:6,4:6) = eye(3)*FILTER.dynmodel_velocity;	% velocity
     Transition(7,7)     = FILTER.dynmodel_zwd;              % zenith wet delay
     % code receiver clock error
@@ -191,7 +211,17 @@ if bool_filter
     Transition(30,30)  	= FILTER.dynmodel_DCB;          % Galileo
     Transition(31,31)  	= FILTER.dynmodel_DCB;          % BeiDou
     Transition(32,32)  	= FILTER.dynmodel_DCB;          % QZSS
-    
+    % receiver clock drift
+    Transition(33,33)  	= FILTER.dynmodel_rclk_drift;
+
+    if settings.KINE.satellite.bool
+        % save approximate position
+        Adjust.approx_position = param_vec(1:3);
+        % use dynamic prediction for satellite PPP
+        [param_pred(1:6), Transition] = ...
+            DynamicPredictionPosVel(param_vec, Epoch, obs, settings, Transition, Adjust.float);
+    end
+
 else
     % Transition and Noise Matrix are not needed
     Transition = [];

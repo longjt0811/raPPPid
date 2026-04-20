@@ -64,7 +64,7 @@ else
 end
 
 % Start-date in different time-formats
-hour = obs.startdate(4) + obs.startdate(5)/60 + obs.startdate(6)/3660;
+hour = obs.startdate(4) + obs.startdate(5)/60 + obs.startdate(6)/3600;
 obs.startdate_jd = cal2jd_GT(obs.startdate(1),obs.startdate(2), obs.startdate(3) + hour/24);
 [obs.startGPSWeek, obs.startSow, ~] = jd2gps_GT(obs.startdate_jd);
 [obs.doy, ~] = jd2doy_GT(obs.startdate_jd);
@@ -96,7 +96,7 @@ if settings.ORBCLK.bool_sp3
         [fname, fpath] = ConvertStringDate(path_sp3, obs.startdate(1:3));
         path_sp3 = ['../DATA/ORBIT' fpath fname];
     end
-    [sp3_GPS, sp3_GLO, sp3_GAL, sp3_BDS, sp3_QZSS] = read_precise_eph(path_sp3);
+    [sp3_GPS, sp3_GLO, sp3_GAL, sp3_BDS, sp3_QZSS] = read_precise_eph(path_sp3, true);
     input.ORBCLK.preciseEph_GPS = sp3_GPS;
     input.ORBCLK.preciseEph_GLO = sp3_GLO;
     input.ORBCLK.preciseEph_GAL = sp3_GAL;
@@ -370,15 +370,12 @@ end
 %   - CODE OSB File
 %   - manually selected SINEX-Bias-File for code biases
 %   - CNES Archive for code and phase biases
-bool_sinex = any(strcmp(settings.BIASES.code, ...
-    {'CAS Multi-GNSS DCBs','CAS Multi-GNSS OSBs','DLR Multi-GNSS DCBs','CODE OSBs','CNES OSBs','CODE MGEX','WUM MGEX','CNES MGEX','GFZ MGEX','HUST MGEX','CNES postprocessed'}));
-bool_manually_sinex = strcmp(settings.BIASES.code, 'manually') && settings.BIASES.code_manually_Sinex_bool;
-bool_CNES_archive_biases = strcmp(settings.ORBCLK.CorrectionStream, 'CNES Archive') && (settings.BIASES.code_corr2brdc_bool || settings.BIASES.phase_corr2brdc_bool);
+[bool_sinex, bool_manually_sinex, bool_CODE_dcb, bool_archive_biases, ~] = CheckBiasSource(settings);
 settings.AMBFIX.APC_MODEL = false;
-if bool_sinex || bool_manually_sinex || bool_CNES_archive_biases
+if bool_sinex || bool_manually_sinex || bool_archive_biases
     if bool_sinex || bool_manually_sinex
         path_sinex = settings.BIASES.code_file;
-    elseif bool_CNES_archive_biases
+    elseif bool_archive_biases
         path_sinex = settings.BIASES.code_file;     % or settings.BIASES.phase_file
     end
     % check for auto-detection Sinex-BIAS-File
@@ -411,7 +408,7 @@ if bool_sinex || bool_manually_sinex || bool_CNES_archive_biases
 end
 
 % -) CODE DCBs: directly selected or manually
-if strcmp(settings.BIASES.code, 'CODE DCBs (P1P2, P1C1, P2C2)') || ( strcmp(settings.BIASES.code, 'manually') && settings.BIASES.code_manually_DCBs_bool )
+if bool_CODE_dcb
     path_dcb = settings.BIASES.code_file;
     % check for auto-detection DCB-Files
     if contains(path_dcb{1}, '$')
@@ -504,7 +501,7 @@ end
 %% Estimation - Adjustment
 
 % read ORBEX carrying the orientation of LEO satellite
-if settings.ADJ.satellite.bool && strcmp(settings.ADJ.satellite.orient_mode, 'ORBEX')
+if settings.KINE.satellite.bool && strcmp(settings.KINE.orient_mode, 'ORBEX')
     Q = readmatrix('1st_Jan_quat.DBL', 'FileType','text', 'CommentStyle','#');
     % [file,location] = uigetfile({'*.*'}, 'Selection ORBEX with attitude of satellite.');
     % Q = readmatrix([location file], 'FileType','text', 'CommentStyle','#');

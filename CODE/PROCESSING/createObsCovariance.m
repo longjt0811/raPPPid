@@ -209,9 +209,21 @@ end
 
 
 %% add Doppler parth
-if contains(settings.PROC.method, 'Doppler') && ~strcmp(settings.PROC.method, 'Code (Doppler Smoothing)')
-    % |||D improve, only test values    
-    Q_doppler = eye(n*n_proc);
+if contains(settings.PROC.method, '+ Doppler')
+    % build wavelength vector
+    if strcmp(settings.IONO.model, '2-Frequency-IF-LCs')
+        wavelengths = (Epoch.f1.^2.*Epoch.l1-Epoch.f2.^2.*Epoch.l2) ./ (Epoch.f1.^2-Epoch.f2.^2);
+    else
+        wavelengths = [Epoch.l1 Epoch.l2 Epoch.l3];
+        wavelengths = wavelengths(:, 1:n_proc);
+    end
+    wavelengths(isnan(wavelengths) | isinf(wavelengths)) = 1;
+    % convert variance from [Hz] to [m^2/s^2]
+    var_doppler_ms = settings.ADJ.var_doppler .* wavelengths.^2;
+    % get weighting factor (depending on chosen weighting function in GUI)
+    fac_doppler = P_fac(:, 1:n_proc);
+    % build covariance matrix of Doppler observations
+    Q_doppler = diag(var_doppler_ms(:) ./ fac_doppler(:));
     % create covariance and weigth-matrix
     Q = blkdiag(Q, Q_doppler);
     P = blkdiag(P, inv(Q_doppler));

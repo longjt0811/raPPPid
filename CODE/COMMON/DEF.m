@@ -11,7 +11,8 @@
 classdef DEF
     
     properties (Constant = true)
-        version = ['Version 4.1 ', char(169), ' TUW 2023'];
+        ver     = '5.0';
+        version = ['Version ' DEF.ver ' ', char(169), ' TUW 2026'];
         
         % size of many variables due to raPPPid internal satellite numbering
         SATS = 410;
@@ -70,14 +71,16 @@ classdef DEF
         % rec offset GAL,  dcb^E_1, dcb^E_2,                            (3)
         % rec offset BDS,  dcb^C_1, dcb^C_2,                            (3)  
         % rec offset QZSS, dcb^J_1, dcb^J_2,                            (3)
-        NO_PARAM_ZD = 22;	
+        % rec clock drift                                               (1)
+        NO_PARAM_ZD = 23;	
         PARAM_ZD = ...
             {'x'; 'y'; 'z'; 'v_x'; 'v_y'; 'v_z'; 'zwd'; ...
             'rec_clk_G'; 'dcb_1_G'; 'dcb_2_G'; ...
             'rec_clk_R'; 'dcb_1_R'; 'dcb_2_R'; ...
             'rec_clk_E'; 'dcb_1_E'; 'dcb_2_E'; ...
             'rec_clk_C'; 'dcb_1_C'; 'dcb_2_C'; ...
-            'rec_clk_J'; 'dcb_1_J'; 'dcb_2_J'; };
+            'rec_clk_J'; 'dcb_1_J'; 'dcb_2_J'; ...
+            'rec_clk_drift'};
         
         % decoupled clock model, number of estimated parameters : 
         % rec clock code:  GPS, GLO, GAL, BDS, QZSS                     (5)
@@ -85,14 +88,16 @@ classdef DEF
         % IFB: GPS, GLO, GAL, BDS, QZSS                                 (5)
         % L2 bias: GPS, GLO, GAL, BDS, QZSS                             (5)  
         % L3 bias: GPS, GLO, GAL, BDS, QZSS                             (5)  
-        NO_PARAM_DCM = 32;        
+        % rec clock drift                                               (1)
+        NO_PARAM_DCM = 33;        
         PARAM_DCM = ...
             {'x'; 'y'; 'z'; 'v_x'; 'v_y'; 'v_z'; 'zwd'; ...
             'rec_clk_code_G';  'rec_clk_code_R';  'rec_clk_code_E';  'rec_clk_code_C';  'rec_clk_code_J'; ...
             'rec_clk_phase_G'; 'rec_clk_phase_R'; 'rec_clk_phase_E'; 'rec_clk_phase_C'; 'rec_clk_phase_J'; ...
             'IFB_G'; 'IFB_R'; 'IFB_E'; 'IFB_C'; 'IFB_J';
             'L2_bias_G'; 'L2_bias_R'; 'L2_bias_E'; 'L2_bias_C'; 'L2_bias_J';
-            'L3_bias_G'; 'L3_bias_R'; 'L3_bias_E'; 'L3_bias_C'; 'L3_bias_J'; };
+            'L3_bias_G'; 'L3_bias_R'; 'L3_bias_E'; 'L3_bias_C'; 'L3_bias_J'; ...
+            'rec_clk_drift'};
 
         % minimal number of satellites in an epoch to calculate a position
         MIN_SATS = 4;

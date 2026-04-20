@@ -63,6 +63,11 @@ filtersetts.ADJ.filter.var_DCB = str2double( get(handles.edit_filter_dcbs_sigma0
 filtersetts.ADJ.filter.Q_DCB = str2double( get(handles.edit_filter_dcbs_Q, 'String') )^2; 
 filtersetts.ADJ.filter.dynmodel_DCB = get(handles.popupmenu_filter_dcbs_dynmodel, 'Value')-1;
 
+% Receiver Clock Drift
+filtersetts.ADJ.filter.var_rclk_drift = str2double( get(handles.edit_filter_rec_clk_drift_sigma0, 'String') )^2;    % a-priori-variance of QZSS receiver clock
+filtersetts.ADJ.filter.Q_rclk_drift = str2double( get(handles.edit_filter_rec_clk_drift_Q, 'String') )^2;          % system noise of QZSS receiver clock
+filtersetts.ADJ.filter.dynmodel_rclk_drift = get(handles.popupmenu_filter_rec_clk_drift_dynmodel, 'Value')-1;
+
 % Float Ambiguities
 filtersetts.ADJ.filter.var_amb = str2double( get(handles.edit_filter_ambiguities_sigma0, 'String') )^2; 	% a-priori-variance of float ambiguities
 filtersetts.ADJ.filter.Q_amb  = str2double( get(handles.edit_filter_ambiguities_Q, 'String') )^2;         % system noise of float ambiguities

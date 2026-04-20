@@ -47,9 +47,9 @@ dx(bool) = []; dy(bool) = []; dz(bool) = [];
 % plot
 fig_3coord = figure('Name','XYZ Plot', 'NumberTitle','off');
 hold on
-plot(seconds,dz, 'color', [0.4660 0.6740 0.1880], 'LineWidth', 1);
 plot(seconds,dx, 'color', [0.8500 0.3250 0.0980], 'LineWidth', 1);
 plot(seconds,dy, 'color', [0      0.4470 0.7410], 'LineWidth', 1);
+plot(seconds,dz, 'color', [0.4660 0.6740 0.1880], 'LineWidth', 1);
 if ~isempty(resets); vline(resets, 'k:'); end	% plot vertical lines for resets
 none = dz==0 | dx==0 | dy==0;	% plot black line where no solution
 xAxis_black = seconds;
@@ -65,7 +65,7 @@ str_dZ = sprintf('%.3f', RMS_z*100);
 str_dX_ = ['dX (rms = ' str_dX ' ' unit];
 str_dY_ = ['dY (rms = ' str_dY ' ' unit];
 str_dZ_ = ['dZ (rms = ' str_dZ ' ' unit];
-legend(str_dZ_, str_dX_, str_dY_, 'Location', 'Best')
+legend(str_dX_, str_dY_, str_dZ_, 'Location', 'Best')
 
 % % create simple legend
 % legend('dX','dY','dZ', 'Location', 'Best')        

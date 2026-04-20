@@ -52,9 +52,10 @@ for j = 1:n_labels
     [unique_stations, ~, ~] = unique(STATIONS, 'stable');
     n_unique = numel(unique_stations);  	% number of different stations
     
-    % initialize variable storing the 95% quantile of the 2D and 3D
+    % initialize variable storing the 95% and 99% quantile of the 2D and 3D
     % error of all epochs for each station
-    ACC_2D = zeros(n_unique,1);     ACC_3D = zeros(n_unique,1);
+    ACC_2D_95 = zeros(n_unique,1);     ACC_3D_95 = zeros(n_unique,1);
+    ACC_2D_99 = zeros(n_unique,1);     ACC_3D_99 = zeros(n_unique,1);
     % initialize variable storing mean time of float 2D and 3D
     % convergence for each station
     CONV_2D_mean = zeros(n_unique,1);    CONV_3D_mean = zeros(n_unique,1);
@@ -64,6 +65,12 @@ for j = 1:n_labels
     % initialize variable storing 0.68 and 0.95 quantile of ZTD estimation
     ZTD_68 = zeros(n_unique,1);     ZTD_95 = zeros(n_unique,1);
     
+
+
+    VIOLINE = zeros(1, n_unique);
+
+
+
     %% loop over different stations of current label
     for i = 1:n_unique
         
@@ -133,13 +140,26 @@ for j = 1:n_labels
         CONV_2D_medi(i) = median(conv_2D, 'omitnan');
         CONV_3D_medi(i) = median(conv_3D, 'omitnan');
         % calculate quantiles
-        ACC_2D(i) = calc_quantile(d2D(:), .95);
-        ACC_3D(i) = calc_quantile(d3D(:), .95);
+        ACC_2D_95(i) = calc_quantile(d2D(:), .95);
+        ACC_3D_95(i) = calc_quantile(d3D(:), .95);
+        ACC_2D_99(i) = calc_quantile(d2D(:), .99);
+        ACC_3D_99(i) = calc_quantile(d3D(:), .99);        
         if ~isempty(d.ZTD)
             ZTD_68(i) = calc_quantile(abs(d.ZTD(:)), .68);
             ZTD_95(i) = calc_quantile(abs(d.ZTD(:)), .95);
         end
-        
+
+
+
+        VIOLINE(1:numel(d3D),i) = d3D(:);
+
+
+
+
+
+
+
+
     end         % end of loop over files of current label
     
     
@@ -188,14 +208,14 @@ for j = 1:n_labels
         station = unique_stations{iii};
         if contains(station, stat_list)
             bool = contains(stat_list, station);
-            G_acc_2D{row,bool} = ACC_2D(iii);
-            G_acc_3D{row,bool} = ACC_3D(iii);
+            G_acc_2D{row,bool} = ACC_2D_95(iii);
+            G_acc_3D{row,bool} = ACC_3D_95(iii);
         else
             col = size(G_acc_3D,2) + 1;
             G_acc_2D{1,col} = station;
-            G_acc_2D{row,col} = ACC_2D(iii);
+            G_acc_2D{row,col} = ACC_2D_95(iii);
             G_acc_3D{1,col} = station;
-            G_acc_3D{row,col} = ACC_3D(iii);
+            G_acc_3D{row,col} = ACC_3D_95(iii);
         end
     end
     
@@ -231,6 +251,37 @@ end
 
 %% Create Station Graph
 
+% set zeros to NaN
+VIOLINE(VIOLINE == 0) = NaN;
+
+% remove worst 1% of data to make plot more readable
+VIOLINE(VIOLINE > ACC_3D_99') = NaN;
+
+% sort by ascending 99% quantile of 3D position error
+[~, idx] = sort(ACC_3D_99);
+VIOLINE_ = VIOLINE(:,idx);
+unique_stations_ = unique_stations(idx);
+
+
+
+% figure('Name', curr_label)
+% violinplot(VIOLINE_ * 100)       % plot and scale to [cm]
+% 
+% xticklabels(unique_stations_)
+% if PlotStruct.float
+%     title('3D accuracy, float')
+% elseif PlotStruct.fixed
+%     title('3D accuracy, fixed')
+% end
+% ylabel('3D position error [cm]')
+
+
+ 
+
+
+
+
+
 % --- Preparations
 [n, m] = size(G_conv_3D_mean);
 % replace missing stations values with NaN
@@ -242,8 +293,64 @@ G_acc_2D ( cellfun(@isempty, G_acc_2D ) ) = {NaN};
 G_acc_3D ( cellfun(@isempty, G_acc_3D ) ) = {NaN};
 G_ZTD_68 ( cellfun(@isempty, G_ZTD_68)  ) = {NaN};
 G_ZTD_95 ( cellfun(@isempty, G_ZTD_95 ) ) = {NaN};
+
+
+
+
+
+
+% --- Plot 2D convergence, 3D and ZTD accuracy over all stations
+% sort all plots based on the 3D accuracy of the first label
+acc_3D = G_acc_3D';
+[acc_3D, idx_sort] = sortrows(acc_3D, 2);
+acc_3D = acc_3D';
+% sort mean 2D convergence and ZTD
+conv_2D = G_conv_2D_mean(:,idx_sort);
+ZTD_95 = G_ZTD_95(:,idx_sort);
+
+% create colors to plot
+color_3D   = [145, 145, 145] / 255;
+color_ZTD  = [25, 188, 247] / 255;
+color_conv = [247, 147, 25] / 255;
+
+for ii = 2:n
+    figure('Name',unique_labels{ii-1}, 'NumberTitle','off');
+    
+    % get data to plot 
+    x = 1:m;
+    y_3D = 100*cell2mat(acc_3D(ii,:));      % convert to [cm]
+    y_ZTD = 100*cell2mat(ZTD_95(ii,:));     % convert to [cm]
+    y_conv = cell2mat(conv_2D(ii,:));
+
+    % plot 95% quantile of 3D accuracy and ZTD in [cm]
+    plot(x, y_3D, '-o', 'color', [0 0 0], 'MarkerFaceColor', color_3D)
+    hold on
+    plot(x, y_ZTD, '-o', 'color', [0 0 0], 'MarkerFaceColor', color_ZTD)
+    ylabel('95% Quantile [cm]')
+    ylim([0, Inf])
+
+    % plot mean 2D convergence time
+    yyaxis right
+    set(gca,'YColor', color_conv) 
+    plot(x, y_conv, '-o', 'color', [0 0 0], 'MarkerFaceColor', color_conv)
+    ylabel('Convergence [min]')
+    ylim([0, Inf])
+
+    % style plot
+    xticks(x)                   % set x ticks
+    xticklabels(acc_3D(1,:))    % write station name 
+    xtickangle(270)             % rotate x ticks
+    xlabel('Stations')
+    xlim([1, m])
+    legend('3D, 95%', 'ZTD, 95%', 'conv, mean', 'Location','northwest')
+end
+
+
+
+
+
+
 % sort stations based on the convergence times of the first label
-G_conv_2D_mean = G_conv_2D_mean'; G_conv_2D_mean = sortrows(G_conv_2D_mean, 2); G_conv_2D_mean = G_conv_2D_mean';
 G_conv_3D_mean = G_conv_3D_mean'; G_conv_3D_mean = sortrows(G_conv_3D_mean, 2); G_conv_3D_mean = G_conv_3D_mean';
 G_conv_2D_medi  = G_conv_2D_medi';  G_conv_2D_medi  = sortrows(G_conv_2D_medi, 2);  G_conv_2D_medi  = G_conv_2D_medi';
 G_conv_3D_medi  = G_conv_3D_medi';  G_conv_3D_medi  = sortrows(G_conv_3D_medi, 2);  G_conv_3D_medi  = G_conv_3D_medi';
@@ -251,6 +358,8 @@ G_acc_2D  = G_acc_2D';  G_acc_2D  = sortrows(G_acc_2D,  2); G_acc_2D  = G_acc_2D
 G_acc_3D  = G_acc_3D';  G_acc_3D  = sortrows(G_acc_3D,  2); G_acc_3D  = G_acc_3D';
 G_ZTD_68  = G_ZTD_68';  G_ZTD_68  = sortrows(G_ZTD_68, 2);  G_ZTD_68  = G_ZTD_68';
 G_ZTD_95  = G_ZTD_95';  G_ZTD_95  = sortrows(G_ZTD_95,  2); G_ZTD_95  = G_ZTD_95';
+
+
 % get plot data
 P11 = cell2mat(G_conv_2D_mean(2:n, 1:m));
 P12 = cell2mat(G_conv_3D_mean(2:n, 1:m));

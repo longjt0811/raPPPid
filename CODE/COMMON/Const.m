@@ -32,7 +32,7 @@ classdef Const
         GM_GLO = Const.GM_GAL;
         GM_BDS = 3.986004418e14;
         % Earth rotation rate [rad/s]
-        WE = 7.2921151467e-5;
+        WE = 7.2921151467e-5;   % GPS value
         WE_GLO = 7.2921150e-5; 
         WE_GAL = Const.WE;
         WE_BDS = 7.2921150e-5;

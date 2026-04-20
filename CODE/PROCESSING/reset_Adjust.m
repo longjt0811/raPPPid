@@ -25,7 +25,8 @@ Adjust.A = [];          % Design Matrix (aka Observation Matrix)
 Adjust.P = [];          % weight matrix of the observations
 Adjust.Q = [];          % covariance matrix of the observations
 Adjust.omc = [];        % observed minus computed
-Adjust.res = [];        % residuals for code and phase observations
+Adjust.res = [];        % residuals of code and phase observations
+Adjust.res_doppler = [];% residuals of Doppler observations
 % filter variables
 Adjust.Transition = [];	% Transition matrix (Kalman Filter)
 Adjust.Noise = [];    	% Noise matrix (Kalman Filter)

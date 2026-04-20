@@ -78,15 +78,15 @@ PR = generateCodePseudorange(gnssRaw, leap_sec);
 
 % -) get phase observations
 Phase = gnssRaw.AccumulatedDeltaRangeMeters;        % [m]
-ADR_state = gnssRaw.AccumulatedDeltaRangeState;     % state of phase
+ADR_state = gnssRaw.AccumulatedDeltaRangeState;     % state of phase, converted to decimal
 % ADR state: 
 % 0 ... invalid or unknown
 % 1 ... valid
 % 2 ... reset has been detected
 % 4 ... cycle slip has been detected
-ADR_reset = bitand(ADR_state, 2^1);
-ADR_cs    = bitand(ADR_state, 2^2);
-Phase(ADR_reset | ADR_cs) = NaN;                    % exclude observations with reset or cycle slip detected
+ADR_reset = bitand(ADR_state, 2^1);     % 2 ... reset has been detected
+ADR_cs    = bitand(ADR_state, 2^2);     % 4 ... cycle slip has been detected
+Phase(ADR_reset | ADR_cs) = NaN;        % exclude observations with reset or cycle slip detected according to ADR state
 
 % -) get C/N0
 SNR = gnssRaw.Cn0DbHz;

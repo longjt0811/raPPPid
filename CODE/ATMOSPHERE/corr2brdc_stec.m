@@ -1,4 +1,4 @@
-function [stec] = corr2brdc_stec(corr_vtec, az, elev, pos_geo, Ttr)
+function [stec] = corr2brdc_stec(C_nm, S_nm, H_I, az, elev, lat_rx, lon_rx, H_rx, Ttr)
 % Calculates the ionospheric correction from spherical harmonics 
 % coefficients, provided by a correction stream.
 % 
@@ -7,40 +7,33 @@ function [stec] = corr2brdc_stec(corr_vtec, az, elev, pos_geo, Ttr)
 % https://doi.org/10.1007/s10291-018-0802-2;
 % 
 % INPUT:
-%   corr_vtec   struct, containing data from correction stream
+%   C_nm        cosine coefficients [TECU]
+%   S_nm        sine coefficients [TECU] 
+%   H_I         height of ionospheric layer [m]
 %   az          azimut [°]
 %   elev        elevation [°]
-%   pos_geo     struct, ph = latitude [rad], la = longitude [rad], h = height [m]
+%   lat_rx      latitude of receiver [rad]
+%   lon_rx      longitude of receiver [rad]
+%   H_rx        height of receiver [m]
 %   Ttr         GPS time of computation epoch [sod]
 % OUTPUT:
 %   stec        Slant Total Electron Content [TECU]
 % 
 % Revision:
 %	2025/02/06, MFWG: improving code, changing input variables
+%   2025/11/10, MFWG: input changed
 % 
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
 
 
 %% Preparations
-lat_rx = pos_geo.lat;    	% latitude/phi of receiver [rad] 
-lon_rx = pos_geo.lon;     	% longitude/lambda of receiver [rad]
-H_rx   = pos_geo.h/1000;   	% height of receiver [km]
-
-H_I = corr_vtec.height/1000;% height of ionospheric layer [km]
+H_rx   = H_rx/1000;   	    % convert to [km]
+H_I = H_I/1000;             % convert to [km]
 R_e = Const.RE / 1000;      % radius of earth [km]
 
 elev = elev/180*pi;         % convert elevation into [rad]
 az = az/180*pi;             % convert azimuth into [rad]
-
-% find nearest VTEC data in correction stream
-% ||| interpolate 
-dt = Ttr - corr_vtec.t;     % time difference [sow]
-dt(dt<0) = [];              % ignore future data to maintain real-time conditions
-
-idx = find(dt == min(dt));  	% index of nearest VTEC data
-C_nm = corr_vtec.Cnm(:,:,idx);	% cosine coefficients [TECU]
-S_nm = corr_vtec.Snm(:,:,idx); 	% sine coefficients [TECU] 
 
 
 %% calculate ionospheric pierce point 

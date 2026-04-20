@@ -295,6 +295,12 @@ end
     guidata(hObject, handles);
     end
 
+    function menu_models_kinematic_Callback(hObject, eventdata, handles)
+    setAllPanelsToInvisible(handles)
+    set(handles.uipanel_kinematic, 'Visible', 'On');
+    handles = GUI_enable_onoff(handles);    % update the visible items
+    guidata(hObject, handles);
+    end
 
 function menu_estimation_Callback(hObject, eventdata, handles)
 end
@@ -370,6 +376,7 @@ set(handles.uipanel_troposphere,       'Visible',  'Off');   % Troposphere
 set(handles.uipanel_ionosphere,        'Visible',  'Off');   % Ionosphere
 set(handles.uipanel_biases,            'Visible',  'Off');   % Biases
 set(handles.uipanel_otherCorrections,  'Visible',  'Off');   % Other Corrections
+set(handles.uipanel_kinematic,         'Visible',  'Off');   % Kinematic
 set(handles.uipanel_ambiguityFixing,   'Visible',  'Off');   % Ambiguity fixing
 set(handles.uipanel_adjustment,        'Visible',  'Off');   % Adjustment
 set(handles.uipanel_weighting,         'Visible',  'Off');   % Observation weighting
@@ -434,7 +441,7 @@ end
 function pushbutton_obs_file_Callback(hObject, eventdata, handles)
 folder = getFolderPath([Path.DATA '/OBS/'], handles.paths.obs_1, handles.paths.rinex_date);
 if ~exist(folder, 'dir'); folder = [Path.DATA '/OBS/']; end     % e.g., data folder was deleted
-[FileName, PathName] = uigetfile({'*.*o;*.rnx;*.obs;*.txt'}, 'Select the Observation File', GetFullPath(folder));
+[FileName, PathName] = uigetfile({'*.*o;*.rnx;*.obs;*.txt;*.csv'}, 'Select the Observation File', GetFullPath(folder));
 PathName = relativepath(PathName);   % convert absolute path to relative path
 if ~FileName        % uigetfile cancelled
     return;
@@ -1027,18 +1034,25 @@ if isempty(handles.edit_plot_path.String)
     return
 end
 
-if ~exist(handles.edit_plot_path.String, 'file')
-    errordlg('data4plot.mat not found (try reloading).', 'Error')
+% check if any results are available
+if ~isfile([handles.edit_plot_path.String '/data4plot.mat']) && ~isfile([handles.edit_plot_path.String '/results_float.csv']) && ~isfile([handles.edit_plot_path.String '/settings_summary.txt'])
+    errordlg('No results found in results folder (try reloading).', 'Error')
     return
 end
-% corresponding settings.mat: 
-% [fileparts(handles.edit_plot_path.String) '/settings.mat']
-
+    
+% load information on station, coordinate system, and date either from
+% data4plot.mat or recover variable obs from settings_summary.txt
 try
-    load([fileparts(handles.edit_plot_path.String) '/data4plot.mat'], 'obs');
+    load([handles.edit_plot_path.String '/data4plot.mat'], 'obs');
     if ~isfield(obs, 'coordsyst'); obs.coordsyst = ''; end      % old processings
-    pos_true = getCoordinates(obs.stationname, obs.startdate(1:3), obs.coordsyst);
 catch
+    obs = recover_obs(handles.edit_plot_path.String);
+end
+
+% try to load true station coordinates
+if ~isempty(obs.stationname)
+    pos_true = getCoordinates(obs.stationname, obs.startdate(1:3), obs.coordsyst);
+else
     pos_true = [0; 0; 0];
     errordlg('True coordinates could not be found.', 'Error');
 end
@@ -1062,7 +1076,12 @@ end
 % --- Executes on button press in pushbutton_load_true_kinematic.
 function pushbutton_load_true_kinematic_Callback(hObject, eventdata, handles)
 if isempty(handles.edit_plot_path.String);    return;   end
-[FileName, PathName] = uigetfile({'*.*'}, 'Select the reference trajectory', GetFullPath([Path.DATA 'COORDS/']));
+curr_folder = '';
+if strcmp(handles.edit_x_true.String, 'Reference Trajectory')
+    curr_folder = [handles.edit_y_true.String handles.edit_z_true.String];
+end
+traj_folder = getFolderPath([Path.DATA 'COORDS/'], curr_folder, '');
+[FileName, PathName] = uigetfile({'*.*'}, 'Select the reference trajectory', GetFullPath(traj_folder));
 if FileName == 0;    return;    end
 PathName = relativepath(PathName);   % convert absolute path to relative path
 % write into textfields
@@ -1536,9 +1555,9 @@ if fileChosen
         
         % if we have a cell == if we have more than 1 process_list selected
         if iscell(FileName)
-            load([PathName, FileName{i_file}])
+            load([PathName, FileName{i_file}], 'process_list', 'settings')
         else
-            load([PathName, FileName])
+            load([PathName, FileName], 'process_list', 'settings')
         end
         
         % if we have now the process_list variable
@@ -1549,13 +1568,26 @@ if fileChosen
             % delete all lines which do not contain data
             ind = cellfun('isempty',curContent);
             curContent(ind(:,2),:) = [];   % consider the second column (file name) to decide whether there is data or not
-            
+
             % define the new table
             newContent = [curContent; process_list];
 
             % update listbox
             handles.uitable_batch_proc.Data = newContent;
+
+            % check if files also contained settings
+            if exist('settings', 'var')
+                choice = questdlg('Do you also want to load the settings?', 'Settings?', ...
+                    'Yes, overwrite GUI', 'No', 'No');
+                % give user the options to load settings and simplify
+                % reprocessing
+                if strcmp(choice, 'Yes, overwrite GUI')   
+                    handles = setSettingsToGUI(settings, handles, true);
+                end
+            end
         end
+
+
         
     end
 
@@ -1574,18 +1606,24 @@ function pushbutton_plot_stations_Callback(hObject, eventdata, handles)
 % world map
 TABLE = GetTableData(handles.uitable_batch_proc.Data, 2, [], 2, [1 2]);
 if ~isempty(TABLE)
+    % remove multiple entries of a specific station
+    stat = cellfun(@(x) x(1:4), TABLE(:,2), 'UniformOutput', false); % get station from file name
+    [~, keep, ~] = unique(stat);
+    T = TABLE(keep, :);
     % print station, receicer, and antenna to command window
-    n = size(TABLE,1);              % number of stations in table
+    n = size(T,1);              % number of stations in table
     fprintf('| STAT | RECEIVER             | ANTENNA              | \n');    % print header
     fprintf('------------------------------------------------------\n');
     for i = 1:n
-        fpath = [TABLE{i,1} TABLE{i,2}];    % filepath to RINEX file
+        fpath = [T{i,1} T{i,2}];    % filepath to RINEX file
         rheader = anheader_GUI(fpath);      % read out header
         fprintf('| %s | %s | %s |\n', rheader.station_long(1:4), rheader.receiver, rheader.antenna);
+        T{i, 20} = rheader.receiver;        % save receiver
+        T{i, 21} = rheader.antenna;         % save antenna
     end
     fprintf('------------------------------------------------------\n'); fprintf('\n\n');
     % plot stations over world
-    StationWorldPlot(TABLE);
+    StationWorldPlot(T);
 end
 end
 
@@ -1724,6 +1762,34 @@ handles.checkbox_multi_manipulate_same_label.Value = false;
 handles.checkbox_multi_manipulate_same_station.Value = false;
 handles.checkbox_multi_manipulate_all.Value = false;
 
+% check Multi-Plot-Table if any label contains now pseudo-code to replace
+label_changed = (col == 7);
+bool_pseudo = contains(TABLE(:,7), '$');        % rows with pseudo-code are true
+if label_changed && any(bool_pseudo)
+    n = size(TABLE, 1);                     % number of rows
+    loop = 1:n; loop = loop(bool_pseudo);   % create loop variable
+    % creating waitbar
+    WBAR = waitbar(0, 'Start replacing now.', 'Name','Replacing pseudo-code in column "label"');
+    % loop over table to replaced the pseudo-code
+    for i = loop
+        curr_label = TABLE{i,7};    % current label
+        fpath = TABLE{i,1};         % path to current result folder
+        load([fpath 'settings.mat'], 'settings')
+        if exist('settings', 'var')
+            % replace pseudo-code
+            TABLE{i,7} = replacePseudoCode(settings, curr_label, false);
+        end
+        % update waitbar
+        if ishandle(WBAR)
+            progress = i/n;      % 1/100 [%]
+            mess = sprintf('%02.2f%s', progress*100, '% of pseudo-code are replaced.');
+            waitbar(progress, WBAR, mess)
+        end
+    end
+    % close waitbar
+    if ishandle(WBAR);        close(WBAR);    end
+end
+
 handles.uitable_multi_plot.Data = TABLE;    % save manipulated table 
 guidata(hObject, handles);
 end
@@ -1754,26 +1820,32 @@ end
 startfolder = GetFullPath(Path.RESULTS);
 global STOP_CALC;   STOP_CALC = 0;
 while true      % loop to add multiple files
-    PathName = uigetdir(startfolder, 'Select result folder(s) of processing(s)');
+    PathName = uigetdir(startfolder, 'Select result folder of processing(s)');
     if PathName == 0
         return       % no files selected, stopp adding files in table
     end
     [startfolder,~,~] = fileparts(PathName);    % to start next selection in the same folder
     PathName = relativepath(PathName);      	% convert absolute path to relative path
     
+    % create waitbar
+    WBAR = waitbar(0, 'Searching for results in subfolders.', 'Name', 'Writing table of Multi-Plot');
+
     % search all data4plot.mat and add it to table
     Files1 = dir([PathName '/**/data4plot.mat']);       % get all data4plot.mat-files in folder and subfolders
+    if ishandle(WBAR); waitbar(0.33, WBAR, 'Searching for results in subfolders.'); end
     Files2 = dir([PathName '/**/results_float.txt']);   % get all result_float.txt-files
+    if ishandle(WBAR); waitbar(0.66, WBAR, 'Searching for results in subfolders.'); end
     Files3 = dir([PathName '/**/results_float.csv']);   % get all result_float.csv-files
+    if ishandle(WBAR); waitbar(0.99, WBAR, 'Searching for results in subfolders.'); end
     AllFiles = struct2table([Files1; Files2;Files3]);   % merge together and convert to table
     [all_folders, ~, ~] = unique(AllFiles(:,2),'stable');   % keep unique folders    
     
+    % number of folders
     n = numel(all_folders);
-    
     if n < 1; continue; end         % nothing found
     
-    % creating waitbar
-    WBAR = waitbar(0, 'Loading Files...', 'Name','Writing table of Multi-Plot');
+    % update waitbar
+    if ishandle(WBAR); waitbar(0, WBAR, 'Start writing Multi-Plot Table.'); end
     
     % initialize some variables
     stations = cell(1,n);
@@ -1802,13 +1874,19 @@ while true      % loop to add multiple files
             end
         else            % data4plot.mat is not existing -> try settings.txt
             obs.coordsyst = ''; settings.PROC.name = '';
+            % load variable obs from settings_summary.txt
             if isfile(path_settings_txt)
                 obs = recover_obs(path_settings_txt);
             else
                 obs.stationname = ''; obs.startdate = '';
             end
+            % load variable settings from settings.mat or settings_summary.txt
             if isfile(path_settings)
-                load(path_settings, 'settings')
+                try
+                    load(path_settings, 'settings')
+                catch
+                    settings = recover_settings(path_settings_txt);
+                end
             end
         end
         stations{i} = obs.stationname;
@@ -1940,13 +2018,13 @@ if all(cellfun(@isempty,labels))
     return
 end
 if handles.checkbox_multi_plot_each_row.Value       % add number of row
-    add = sprintfc('%02.0f', 1:numel(labels));      % create number of row
+    add = sprintfc('%03.0f', 1:numel(labels));      % create number of row
     add = add';
     labels_new = strcat(add, '|', labels);          % add number of row
 else
     check = labels{1};      % check if number of row exists and remove
-    if strcmp(check(3),'|') && ~isnan(str2double(check(1:2)))
-        labels_new = cellfun(@(x) x(4:end), labels, 'un', 0);   % remove number of row
+    if strcmp(check(4),'|') && ~isnan(str2double(check(1:3)))
+        labels_new = cellfun(@(x) x(5:end), labels, 'un', 0);   % remove number of row
     end
 end
 TABLE(:,7) = labels_new;    % save manipulated labels
@@ -2239,7 +2317,7 @@ else
     set(handles.uibuttongroup_CorrStreamRef,'Visible','off');
 end
 
-if strcmpi(string_all{value},'CNES Archive')
+if strcmpi(string_all{value},'CNES Archive') || strcmpi(string_all{value},'CAS Archive')
     set(handles.radiobutton_models_biases_code_CorrectionStream,'Value',1)
     set(handles.radiobutton_models_biases_phase_CorrectionStream,'Value',1)
 end
@@ -3301,6 +3379,8 @@ end
 
 % L1-C1 difference
 function checkbox_CycleSlip_L1C1_Callback(hObject, eventdata, handles)
+handles = GUI_enable_onoff(handles);
+guidata(hObject, handles);
 end
 
 function edit_CycleSlip_L1C1_threshold_Callback(hObject, eventdata, handles)
@@ -3324,6 +3404,8 @@ end
 
 % dL1-dL2 difference
 function checkbox_CycleSlip_DF_Callback(hObject, eventdata, handles)
+handles = GUI_enable_onoff(handles);
+guidata(hObject, handles);
 end
 
 function edit_CycleSlip_DF_threshold_Callback(hObject, eventdata, handles)
@@ -3338,6 +3420,8 @@ end
 
 % Doppler-shift
 function checkbox_CycleSlip_Doppler_Callback(hObject, eventdata, handles)
+handles = GUI_enable_onoff(handles);
+guidata(hObject, handles);
 end
 
 function edit_CycleSlip_Doppler_threshold_Callback(hObject, eventdata, handles)
@@ -3349,7 +3433,23 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 end
 
+% Time Difference
+function checkbox_CycleSlip_TD_Callback(hObject, eventdata, handles)
+handles = GUI_enable_onoff(handles);
+guidata(hObject, handles);
+end
 
+% Hatch-Melbourne-Wübbena
+function checkbox_CycleSlip_HMW_Callback(hObject, eventdata, handles)
+handles = GUI_enable_onoff(handles);
+guidata(hObject, handles);
+end
+
+% Multipath Detection
+function checkbox_MP_detection_Callback(hObject, eventdata, handles)
+handles = GUI_enable_onoff(handles);
+guidata(hObject, handles);
+end
 
 %% Estimation - Ambiguity Fixing
 
@@ -4169,7 +4269,7 @@ end
 % Three Coordinates Plot
 function checkbox_plot_xyz_Callback(hObject, eventdata, handles)
 end
-% Clock Plot
+% Receiver Clock Plot
 function checkbox_plot_clock_Callback(hObject, eventdata, handles)
 end
 % Wet Troposphere Plot
@@ -4260,16 +4360,22 @@ end
 
 % pushbutton to set path to data4plot.mat
 function pushbutton_plot_path_Callback(hObject, eventdata, handles)
-[FileName, PathName] = uigetfile('data4plot*.mat','Select the data4plot.mat for Opening Plots', GetFullPath(Path.RESULTS));
+[FileName, PathName] = uigetfile({ 'data4plot*.mat;results_*.csv'},'Select the data4plot.mat or results_float.csv for creating Single Plots.', GetFullPath(Path.RESULTS));
 PathName = relativepath(PathName);   % convert absolute path to relative path
 if ~FileName            % uigetfile cancelled
     return;
 end
-path_data4plot = [PathName, FileName];
-set(handles.edit_plot_path,'String', path_data4plot);     % ||| ugly
-handles.paths.plotfile = path_data4plot;      % save path to data4plot.mat into handles
+% save path to results folder
+set(handles.edit_plot_path,'String', PathName);
+handles.paths.plotfile = PathName;     
 % load settings for en/disabling plots which are (not) possible
-load(path_data4plot, 'settings');
+if isfile([PathName '/settings.mat'])
+    load([PathName '/settings.mat'], 'settings');
+elseif isfile([PathName '/data4plot.mat'])
+    load([PathName '/data4plot.mat'], 'settings');
+else
+    settings = recover_settings(PathName);
+end
 handles = disable_plot_checkboxes(handles, settings);
 % write true position into textfields (if there is one)
 set(handles.edit_x_true,  'String', num2str(settings.PLOT.pos_true(1)));
@@ -4297,14 +4403,16 @@ if ~bool;    return;    end
 if ~handles.checkbox_singlemultiplot.Value
     % --- normal single plot with data from one processing / data4plot.mat ---
     
-    % file-path to data4plot.mat
-    path_data4plot = handles.paths.plotfile;
-    
-    try     % try to load in
-        load(path_data4plot, 'settings');
-    catch
-        fprintf('Check path to data4plot-file!\n')
-        return
+    % file-path to results folder
+    results_path = handles.paths.plotfile;
+
+    % load settings from selected processing
+    if isfile([results_path '/settings.mat'])
+        load([results_path '/settings.mat'], 'settings');
+    elseif isfile([results_path '/data4plot.mat'])
+        load([results_path '/data4plot.mat'], 'settings');
+    else
+        settings = recover_settings(results_path);
     end
     
     % the following code is useful as it prevents to load in the data from
@@ -4319,20 +4427,31 @@ if ~handles.checkbox_singlemultiplot.Value
     else
         % the plot-data of handles is not the right one or no plot data yet 
         % saved in handles -> load data from data4plot.mat
-        load(path_data4plot, 'obs', 'satellites', 'storeData');
-        handles.settings = settings;
+
+        % load storeData and other variables
+        if isfile([results_path '/data4plot.mat'])
+            load([results_path '/data4plot.mat'], 'obs', 'satellites', 'storeData');
+        else
+            % load storeData from results_float.csv and results_fixed.csv
+            [storeData, success] = read_results_csv(results_path);
+            if ~success
+                % load storeData from results_float.txt and (potentially) results_fixed.txt
+                [storeData, ~] = recover_storeData(results_path);
+            end
+        end
+
+        % rebuild variables which could not loaded
         if ~exist('obs', 'var')         
             % obs was not exported to data4plot.mat -> recover from settings_summary.txt
-            obs = recover_obs(strrep(path_data4plot, 'data4plot.mat', ''));
-        end
-        if ~exist('storeData', 'var')   
-            % storeData was not exported to data4plot.mat -> recover from results_float/_fixed.txt
-            storeData = recover_storeData(strrep(path_data4plot, 'data4plot.mat', ''));
+            obs = recover_obs(strrep(results_path, 'data4plot.mat', ''));
         end
         % ||| nothing to recover satellites
         if ~exist('satellites', 'var')
             satellites = [];        
         end
+
+        % save settings into handles
+        handles.settings = settings;
         handles.obs = obs;
         handles.satellites = satellites;
         handles.storeData = storeData;
@@ -4656,6 +4775,7 @@ PLOT.map       	   = get(handles.checkbox_plot_googlemaps,    'Value');
 PLOT.UTM       	   = get(handles.checkbox_plot_UTM,           'Value');
 PLOT.coordxyz      = get(handles.checkbox_plot_xyz,           'Value');
 PLOT.XYZ      	   = get(handles.checkbox_plot_xyzplot,       'Value');
+PLOT.velocity      = get(handles.checkbox_plot_velocity,      'Value');
 PLOT.elevation     = get(handles.checkbox_plot_elev,          'Value');
 PLOT.satvisibility = get(handles.checkbox_plot_sat_visibility,'Value');
 PLOT.amb     	   = get(handles.checkbox_plot_amb,     'Value');

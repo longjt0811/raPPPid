@@ -29,6 +29,7 @@ storeData.dt_last_reset(q) = Epoch.gps_time-Adjust.reset_time;  % save time afte
 Epoch = Epoch.old;
 Epoch.code  = [];
 Epoch.phase = [];
+Epoch.doppler = [];
 
 if bool_print
     fprintf('... excluded (%s)          \n', Epoch.rinex_header);

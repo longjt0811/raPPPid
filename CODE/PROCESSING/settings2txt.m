@@ -33,12 +33,15 @@ bool_DCM = strcmp(settings.IONO.model, 'Estimate, decoupled clock');
 fprintf(fileID,'%s\n','Input Data:');
 
 fprintf(fileID,'  %s%s\n','Obs-File: ', settings.INPUT.file_obs);
-if ~settings.ADJ.satellite.bool
+if ~settings.KINE.satellite.bool
     fprintf(fileID,'  %s%.3f%s%.3f%s%.3f\n','Approx Pos [m]: ',settings.INPUT.pos_approx(1),' | ',settings.INPUT.pos_approx(2),' | ',settings.INPUT.pos_approx(3));
 end
 fprintf(fileID,'  %s%s\n','Coordinate System: ', obs.coordsyst);
 if settings.INPUT.bool_realtime
     fprintf(fileID,'  %s\n', ['Real-Time processing from ' settings.INPUT.realtime_start_GUI ' to ' settings.INPUT.realtime_ende_GUI]);
+end
+if settings.KINE.bool_kinematic
+    fprintf(fileID,'  %s\n', 'Kinematic processing');
 end
 fprintf(fileID,'\n');
 
@@ -262,7 +265,7 @@ end
 if settings.OTHER.bool_rec_arp || settings.OTHER.bool_rec_pco || settings.OTHER.bool_sat_pco || ... % all other corrections
         settings.OTHER.bool_solid_tides || settings.OTHER.bool_wind_up || settings.OTHER.bool_eclipse          
     fprintf(fileID,'  %s\n','Activated Corrections: ');
-    if settings.OTHER.bool_rec_arp
+    if settings.OTHER.bool_rec_arp && ~settings.KINE.bool_kinematic
         fprintf(fileID,'    %s\n','o Antenna Reference Point');
     end
     if settings.OTHER.bool_rec_pco
@@ -342,6 +345,35 @@ fprintf(fileID,'\n');
 
 
 
+%% Models - Kinematic
+
+if settings.KINE.bool_kinematic || settings.KINE.satellite.bool
+
+    fprintf(fileID,'%s\n','Kinematic:');
+    if settings.KINE.bool_offset
+        fprintf(fileID,'  %s%.4f, %.4f, %.4f\n', 'Offsets are applied [m]: ', settings.KINE.offset(1), settings.KINE.offset(2), settings.KINE.offset(3));
+    else
+        fprintf(fileID,'  %s\n', 'No offsets applied');
+    end
+	fprintf(fileID,'    %s%s\n', 'Orientation mode: ', settings.KINE.orient_mode);
+
+    if settings.KINE.satellite.bool
+        fprintf(fileID,'  %s\n', 'Satellite, dynamic model is applied');
+        fprintf(fileID,'    %s%s\n', 'Identifier: ', settings.KINE.satellite.ID);
+        fprintf(fileID,'    %s%.2f\n', 'Mass [kg]: ',  settings.KINE.satellite.mass);
+        fprintf(fileID,'    %s%.2f\n', 'Area [m^2]: ', settings.KINE.satellite.area);
+        fprintf(fileID,'    %s%.2f\n', 'Drag coefficient []: ', settings.KINE.satellite.drag);
+        fprintf(fileID,'    %s%.2f\n', 'Solar coefficient []: ', settings.KINE.satellite.solar);
+    else
+        fprintf(fileID,'  %s\n', 'No satellite');
+    end
+
+    fprintf(fileID,'\n');
+end
+
+
+
+
 %% Estimation - Adjustment and Weighting
 
 fprintf(fileID,'%s\n','Adjustment:');
@@ -369,8 +401,12 @@ end
 fprintf(fileID,'  %s %4.2f %s %4.2f %s %4.2f %s %4.2f%s %4.2f\n','GNSS weights (GRECJ):', ...
     settings.ADJ.fac_GPS, ':', settings.ADJ.fac_GLO, ':', settings.ADJ.fac_GAL, ':', settings.ADJ.fac_BDS, ':', settings.ADJ.fac_QZSS);
 % Standard deviations of code and phase observations
-fprintf(fileID,'  %s\n','Standard deviation of observations [m]:');
-fprintf(fileID, '%s%6.3f\n%s%6.3f\n', '    code   = ',sqrt(settings.ADJ.var_code),'    phase  = ',sqrt(settings.ADJ.var_phase));
+fprintf(fileID,'  %s\n','Standard deviation of observations:');
+if contains(settings.PROC.method, '+ Doppler')
+    fprintf(fileID, '%s%6.3f\n%s%6.3f\n%s%6.3f\n', '    code  [m]    = ',sqrt(settings.ADJ.var_code),'    phase [m]    = ',sqrt(settings.ADJ.var_phase), '    Doppler [Hz] = ',sqrt(settings.ADJ.var_doppler));
+else
+    fprintf(fileID, '%s%6.3f\n%s%6.3f\n', '    code  [m]    = ',sqrt(settings.ADJ.var_code),'    phase [m]    = ',sqrt(settings.ADJ.var_phase));
+end
 if settings.ADJ.bool_std_frqs       % Frequency-specific standard devations
     fprintf(fileID, '  %s\n', 'Code, additional frequency-specific standard-deviations:');
     if settings.INPUT.use_GPS
@@ -413,7 +449,6 @@ if strcmpi(settings.IONO.model,'Estimate with ... as constraint')
     fprintf(fileID, '%s%6.3f\n', '    ionosphere  = ',sqrt(settings.ADJ.var_iono));
     fprintf(fileID,'      Constraint until minute: %.2f\n', settings.IONO.constraint_until);
     fprintf(fileID,'      Decrease stdev [m] to: %.2f\n', sqrt(settings.IONO.var_iono_decr));
-    
 end
 % Filter and filter settings
 fprintf(fileID,'  %s\n',settings.ADJ.filter.type);
@@ -421,7 +456,7 @@ if ~strcmp(settings.ADJ.filter.type,'No Filter')
     fprintf(fileID,'    %s%s\n', 'Filter direction: ', settings.ADJ.filter.direction);
     fprintf(fileID,'    %s\n', 'Filter-Settings (initial standard deviation [m] | system noise standard deviation [m/sqrt(h)] | dynamic model):');
     fprintf(fileID,'    %s%11.3f%s%11.3f%s%d\n','Coordinates:        ',sqrt(settings.ADJ.filter.var_coord),    ' | ',sqrt(settings.ADJ.filter.Q_coord),     ' | ',settings.ADJ.filter.dynmodel_coord);
-    if settings.ADJ.satellite.bool
+    if settings.KINE.satellite.bool || settings.KINE.bool_kinematic
         fprintf(fileID,'    %s%11.3f%s%11.3f%s%d\n','Velocity:           ',sqrt(settings.ADJ.filter.var_velocity), ' | ',sqrt(settings.ADJ.filter.Q_velocity),  ' | ', settings.ADJ.filter.dynmodel_velocity);
     end
     if settings.TROPO.estimate_ZWD
@@ -443,23 +478,21 @@ if ~strcmp(settings.ADJ.filter.type,'No Filter')
         fprintf(fileID,'    %s%11.3f%s%11.3f%s%d\n','Receiver Clock QZSS:',sqrt(settings.ADJ.filter.var_rclk_qzss), ' | ',sqrt(settings.ADJ.filter.Q_rclk_qzss),  ' | ',settings.ADJ.filter.dynmodel_rclk_qzss);
     end    
     if settings.BIASES.estimate_rec_dcbs
-        fprintf(fileID,'    %s%11.3f%s%11.3f%s%d\n','Receiver DCBs:      ',sqrt(settings.ADJ.filter.var_DCB),      ' | ',sqrt(settings.ADJ.filter.Q_DCB),       ' | ', settings.ADJ.filter.dynmodel_DCB);
+        if ~bool_DCM
+            fprintf(fileID,'    %s%11.3f%s%11.3f%s%d\n','Receiver DCBs:      ',sqrt(settings.ADJ.filter.var_DCB),      ' | ',sqrt(settings.ADJ.filter.Q_DCB),       ' | ', settings.ADJ.filter.dynmodel_DCB);
+        else
+            fprintf(fileID,'    %s%11.3f%s%11.3f%s%d\n','Receiver Biases:    ',sqrt(settings.ADJ.filter.var_DCB),      ' | ',sqrt(settings.ADJ.filter.Q_DCB),       ' | ', settings.ADJ.filter.dynmodel_DCB);
+        end
     end
-    if strcmp(settings.PROC.method, 'Code + Phase')
+    if contains(settings.PROC.method, '+ Doppler')
+        fprintf(fileID,'    %s%11.3f%s%11.3f%s%d\n','Rec Clock Drift:    ',sqrt(settings.ADJ.filter.var_rclk_drift),' | ',sqrt(settings.ADJ.filter.Q_rclk_drift),' | ', settings.ADJ.filter.dynmodel_rclk_drift);
+    end    
+    if contains(settings.PROC.method, '+ Phase')
         fprintf(fileID,'    %s%11.3f%s%11.3f%s%d\n','Float Ambiguities:  ',sqrt(settings.ADJ.filter.var_amb),      ' | ',sqrt(settings.ADJ.filter.Q_amb),       ' | ', settings.ADJ.filter.dynmodel_amb);
     end
     if contains(settings.IONO.model, 'Estimate')
-        fprintf(fileID,'    %s%11.3f%s%11.3f%s%d\n','Ionosphere:         ',sqrt(settings.ADJ.filter.var_iono),     ' | ',sqrt(settings.ADJ.filter.Q_iono),      ' | ', settings.ADJ.filter.dynmodel_iono);
+        fprintf(fileID,'    %s%11.3f%s%11.3f%s%d\n','Ionospheric Delay:  ',sqrt(settings.ADJ.filter.var_iono),     ' | ',sqrt(settings.ADJ.filter.Q_iono),      ' | ', settings.ADJ.filter.dynmodel_iono);
     end
-end
-if settings.ADJ.satellite.bool
-    fprintf(fileID,'  %s\n', 'Satellite, dynamic model is applied');
-    fprintf(fileID,'    %s%s\n', 'Identifier: ', settings.ADJ.satellite.ID);
-    fprintf(fileID,'    %s%.2f\n', 'Mass [kg]: ',  settings.ADJ.satellite.mass);
-    fprintf(fileID,'    %s%.2f\n', 'Area [m^2]: ', settings.ADJ.satellite.area);
-    fprintf(fileID,'    %s%.2f\n', 'Drag coefficient []: ', settings.ADJ.satellite.drag);
-    fprintf(fileID,'    %s%.2f\n', 'Solar coefficient []: ', settings.ADJ.satellite.solar);
-    fprintf(fileID,'    %s%s\n', 'Orientation mode: ', settings.ADJ.satellite.orient_mode);
 end
 fprintf(fileID,'  %s%d','Number of estimated parameters: ', ~bool_DCM*DEF.NO_PARAM_ZD + bool_DCM*DEF.NO_PARAM_DCM);
 fprintf(fileID,'\n');
@@ -475,7 +508,9 @@ if settings.AMBFIX.bool_AMBFIX
     else
         fprintf(fileID,'  %s%.0f\n', 'Fixing-Start [s] = ', settings.AMBFIX.start_WL_sec);
     end
-    fprintf(fileID,'  %s%.2f%s%.2f%s%.0f%s\n','HMW fixing: threshold = ', settings.AMBFIX.HMW_thresh, ' [cy], releasing threshold = ', settings.AMBFIX.HMW_release, ' [cy], window = ', settings.AMBFIX.HMW_window, ' [s]');
+    if ~bool_DCM
+        fprintf(fileID,'  %s%.2f%s%.2f%s%.0f%s\n','HMW fixing: threshold = ', settings.AMBFIX.HMW_thresh, ' [cy], releasing threshold = ', settings.AMBFIX.HMW_release, ' [cy], window = ', settings.AMBFIX.HMW_window, ' [s]');
+    end
     fprintf(fileID,'  %s%d\n','Fixing cutoff [°]: ', settings.AMBFIX.cutoff);
     fprintf(fileID,'  %s%s\n','Choice of Reference Satellite: ', settings.AMBFIX.refSatChoice);
     if strcmp(settings.AMBFIX.refSatChoice, 'manual choice (list):')
@@ -506,7 +541,7 @@ fprintf(fileID,'  %s%s\n','Output: ', settings.PROC.output_dir);
 if settings.PROC.timeSpan_format_epochs
     fprintf(fileID,'  %s%d%s%d\n','Epochs: ',settings.PROC.timeFrame(1),' - ',settings.PROC.timeFrame(2));
 elseif settings.PROC.timeSpan_format_time
-    fprintf(fileID,'  %s%d%s%d\n','Time: ',settings.PROC.timeFrameFrom,' - ',settings.PROC.timeFrameTo);
+    fprintf(fileID,'  %s%s - %s\n','Time: ',settings.PROC.timeFrameFrom,settings.PROC.timeFrameTo);
 elseif settings.PROC.timeSpan_format_SOD
     fprintf(fileID,'  %s%d%s%d\n','Seconds of Day: ',settings.PROC.timeFrame(1),' - ',settings.PROC.timeFrame(2));
 elseif settings.PROC.timeSpan_format_HOD
@@ -678,6 +713,9 @@ if settings.EXP.results_csv
 end
 if settings.EXP.results_csv && settings.AMBFIX.bool_AMBFIX
     fprintf(fileID,'    results_fixed.csv is written\n');
+end
+if settings.EXP.results_csv && settings.EXP.bool_csv_utc
+    fprintf(fileID,'      UTC timestamps are included in CSV\n');
 end
 % Variables: obs
 fprintf(fileID,'  Variables\n');

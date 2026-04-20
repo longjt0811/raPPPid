@@ -1,4 +1,3 @@
-
 function handles = StartProcessingFromGUI(handles)
 % This function starts the PPP processing from the GUI
 %
@@ -23,7 +22,8 @@ bool_BATCH_PROC = handles.checkbox_batch_proc.Value;    % batch-processing enabl
 bool_parfor = handles.checkbox_parfor.Value;            % parfor loop enabled?
 
 
-if bool_BATCH_PROC          % batch processing
+if bool_BATCH_PROC          
+    %% batch processing
     
     % reset plotting panel
     set(handles.edit_plot_path,'String', '');
@@ -115,6 +115,7 @@ if bool_BATCH_PROC          % batch processing
             msgbox(mess_header, 'Achievement', 'help');
             delete('PROCESSLIST/LastFailed.mat');
         else
+            % not all files processed successfully
             n_failed = sum(~success);
             mess_header = {'Batch-Processing is done.'; l_start; l_end; ...
                 ['Failed ' sprintf('%d', n_failed) ' times:']};
@@ -128,7 +129,8 @@ if bool_BATCH_PROC          % batch processing
             msgbox(vertcat(mess_header, failed2), 'Achievement', 'help');
             % save failed processlist in folder PROCESSLIST
             process_list = TABLE(~success, :);
-            save('PROCESSLIST/LastFailed.mat', 'process_list');
+            save('PROCESSLIST/LastFailed.mat', 'process_list', 'settings');
+            save(['PROCESSLIST/LastFailed/LastFailed_' datestr(datetime('now'), 'yyyy-mm-dd_HH-MM-SS') '.mat'], 'process_list', 'settings');
         end
     else            % Batch Processing was stopped
         [~,file,ext] = fileparts(settings_now.INPUT.file_obs);
@@ -138,7 +140,8 @@ if bool_BATCH_PROC          % batch processing
         msgbox(info, 'Achievement', 'help')
     end
     
-else        % Start Processing of single file
+else        
+    %% Start Processing of single file
     
 
     
@@ -154,7 +157,7 @@ else        % Start Processing of single file
     end
     
     % manipulate name of processing (e.g., add GNSS at the beginning)
-    settings = manipulateProcessingName(settings);
+    settings.PROC.name = replacePseudoCode(settings, settings.PROC.name_GUI, true);
     
     % print some information to the command window
     fprintf('\n---------------------------------------------------------------------\n');
@@ -166,16 +169,17 @@ else        % Start Processing of single file
     % -+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
     
     % processing is finished:
-    % update plot-panel of GUI_PPP
+    resultsfolder = settings_.PROC.output_dir;
+    % save results folder for Single Plotting
+    set(handles.edit_plot_path,'String', resultsfolder);    % results folder string to GUI (Single Plot)
+    handles.paths.plotfile = resultsfolder;         % path to plot folder
+    handles.paths.lastproc = resultsfolder;         % path to last processing
+    % change availability of plot checkboxes
     handles = disable_plot_checkboxes(handles, settings_);
-    path_data4plot = [settings_.PROC.output_dir, '/data4plot.mat'];
-    if isfile(path_data4plot)
-        set(handles.edit_plot_path,'String', path_data4plot);  	% ||| ugly
-        handles.paths.plotfile = path_data4plot;      % save path to data4plot.mat into handles
-        set(handles.pushbutton_load_pos_true,'Enable','On');
-        set(handles.pushbutton_load_true_kinematic,'Enable','On');
-        handles.paths.lastproc = settings_.PROC.output_dir;     	% save path to last processing into handles
-    end
+    % enable loading of reference coordinates/trajectory
+    set(handles.pushbutton_load_pos_true,'Enable','On');        
+    set(handles.pushbutton_load_true_kinematic,'Enable','On');   
+    % enable buttons for delete and results folder
     set(handles.pushbutton_delete,  'Enable','On');
     set(handles.pushbutton_results, 'Enable','On');
     fprintf('\n---------------------------------------------------------------------\n');

@@ -1,6 +1,6 @@
 function [GPS, GLO, GAL, BDS, QZSS] = read_precise_eph(filename, bool_check)
 % Reads precise ephemerides for GPS, GLO, GAL, BDS and QZSS from sp3 file
-% 
+%
 % INPUT:
 % 	filename        string with path and name of .sp3 file
 %   bool_check      [optional] boolean, disable specific data checks
@@ -13,13 +13,13 @@ function [GPS, GLO, GAL, BDS, QZSS] = read_precise_eph(filename, bool_check)
 %       GPS.y:          y coordinate of sat. orbit [m]
 %       GPS.z:          z coordinate of sat. orbit [m]
 %       GPS.dt:         clock correction [s]
-% 
+%
 %       GLO, GAL, BDS, and QZSS: structs, same structure as GPS
-%  
+%
 % Revision:
 %   2023/11/03, MFWG: adding QZSS
 %   2025/08/14, MFWG: switch to cal2gpstime
-% 
+%
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
 
@@ -50,8 +50,8 @@ while i <= no_lines         % loop till end of file
     date = sscanf(tline,'%*c %f %f %f %f %f %f');      % start with epoch header (always in GPS time)
     [~, sow] = cal2gpstime(date');
     idx = idx + 1;          % increase epoch index
-    
-    
+
+
     tline = lines{i};   i = i + 1;
     while tline(1) ~= '*' && tline(1) ~= 'E'            % loop over data entry
         % - jump over other GNSS
@@ -59,12 +59,12 @@ while i <= no_lines         % loop till end of file
             tline = lines{i};   i = i + 1;
             continue
         end
-        
+
         % - get data
         type = tline(1);                % Position or Velocity data
         Epoch = sscanf(tline(3:end),'%f');
         prn = Epoch(1);
-        X = Epoch(2);       	
+        X = Epoch(2);
         Y = Epoch(3);
         Z = Epoch(4);
         dT = Epoch(5)*10^-6;        % [microsec] to [s]
@@ -72,7 +72,7 @@ while i <= no_lines         % loop till end of file
             dT = 0;
         end
         gnss = tline(2);
-        
+
         % - save data
         if type == 'P'          % Position data
             if gnss == 'G'
@@ -84,7 +84,7 @@ while i <= no_lines         % loop till end of file
             elseif gnss == 'C'
                 BDS = save_position(BDS, idx, prn, sow, X, Y, Z, dT);
             elseif gnss == 'J'
-                QZSS = save_position(QZSS, idx, prn, sow, X, Y, Z, dT);                
+                QZSS = save_position(QZSS, idx, prn, sow, X, Y, Z, dT);
             end
         elseif type == 'V'      % Velocity data
             if gnss == 'G'
@@ -103,12 +103,12 @@ while i <= no_lines         % loop till end of file
         % - get next line (if possible)
         if i > no_lines; break; end
         tline = lines{i};   i = i + 1;
-        
+
     end     % loop over data entry
 end     % loop till end of file
 
 % check read data to prevent errors later-on
-% e.g., size of struct and GPS week rollover 
+% e.g., size of struct and GPS week rollover
 GPS = checkPrecEph(GPS, DEF.SATS_GPS, bool_check);
 GLO = checkPrecEph(GLO, DEF.SATS_GLO, bool_check);
 GAL = checkPrecEph(GAL, DEF.SATS_GAL, bool_check);
@@ -127,6 +127,8 @@ GNSS.Y (i, prn)	= Y*1000;
 GNSS.Z (i, prn) = Z*1000;
 GNSS.dT(i, prn) = dT;
 
+
+
 % save-function for velocity
 function GNSS = save_velocity(GNSS, i, prn, sow, X, Y, Z, dT)
 GNSS.t_vel (i, prn)	= sow;
@@ -135,36 +137,44 @@ GNSS.Y_vel (i, prn)	= Y/10;
 GNSS.Z_vel (i, prn) = Z/10;
 GNSS.dT_vel(i, prn) = dT;
 
+
+
 % check read-in precise ephemeris
 function GNSS = checkPrecEph(GNSS, noSats, bool_check)
 if isempty(GNSS)
     return              % no data for this GNSS
 end
-[rows, sats] = size(GNSS.t);
+[epochs, sats] = size(GNSS.t);
+
 % check for missing columns/satellites
-if sats < noSats       
-    GNSS.t (rows, noSats) = 0;
-    GNSS.X (rows, noSats) = 0;
-    GNSS.Y (rows, noSats) = 0;
-    GNSS.Z (rows, noSats) = 0;
-    GNSS.dT(rows, noSats) = 0;
+if sats < noSats
+    GNSS.t (epochs, noSats) = 0;
+    GNSS.X (epochs, noSats) = 0;
+    GNSS.Y (epochs, noSats) = 0;
+    GNSS.Z (epochs, noSats) = 0;
+    GNSS.dT(epochs, noSats) = 0;
 end
+
 % check for GPS week rollover:
-% If the processed day is a Saturday, the last epoch of the precise orbit 
-% file is 0h on the next day = Sunday = 1st day of new GPS week. Therefore 
+% If the processed day is a Saturday, the last epoch of the precise orbit
+% file is 0h on the next day = Sunday = 1st day of new GPS week. Therefore
 % the time-stamp of this epoch has to be corrected from 0 to 604800 [sow]
 newGPSweek = GNSS.t < GNSS.t(1,:);
 GNSS.t = GNSS.t + newGPSweek.*86400*7;
 
 if bool_check
-% check if there are epochs without data at all, these epochs prevent 
-% reasonable interpolation during processing -> delete these epochs
-bool_empty_epoch = ...
-    all(GNSS.X == 0, 2)  | all(GNSS.Y == 0, 2)  | all(GNSS.Z == 0, 2) | ...
-    all(isnan(GNSS.X),2) | all(isnan(GNSS.Y),2) | all(isnan(GNSS.Z),2);
-GNSS.t(bool_empty_epoch,:) = [];
-GNSS.X(bool_empty_epoch,:) = [];
-GNSS.Y(bool_empty_epoch,:) = [];
-GNSS.Z(bool_empty_epoch,:) = [];
-GNSS.dT(bool_empty_epoch,:) = [];
+    % check if there are epochs without data at all, these epochs prevent
+    % reasonable interpolation during processing -> delete these epochs
+    bool_empty_epoch = ...
+        all(GNSS.X == 0, 2)  | all(GNSS.Y == 0, 2)  | all(GNSS.Z == 0, 2) | ...
+        all(isnan(GNSS.X),2) | all(isnan(GNSS.Y),2) | all(isnan(GNSS.Z),2);
+    GNSS.t(bool_empty_epoch,:) = [];
+    GNSS.X(bool_empty_epoch,:) = [];
+    GNSS.Y(bool_empty_epoch,:) = [];
+    GNSS.Z(bool_empty_epoch,:) = [];
+    GNSS.dT(bool_empty_epoch,:) = [];
 end
+
+% check if there are missing datapoints and set their time-stamp to NaN
+nodata = (GNSS.t == 0 & GNSS.X == 0 & GNSS.Y == 0 & GNSS.Z == 0 & GNSS.dT == 0);
+GNSS.t(nodata) = NaN;

@@ -1,6 +1,6 @@
 function [Epoch, obs] = prepareObservations(settings, obs, Epoch)
 % This function prepares the observations for the epoch-wise processing
-% 
+%
 % INPUT:
 %   settings        struct, settings from GUI
 %   obs             struct, observations and data from rinex-obs-file
@@ -12,7 +12,7 @@ function [Epoch, obs] = prepareObservations(settings, obs, Epoch)
 % Revision:
 %   2025/02/03, MFWG: move some code to RemoveSort()
 %   2023/06/11, MFWG: adding QZSS
-% 
+%
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
 
@@ -34,7 +34,7 @@ for i = 1:size(obs.phase_shift,2)
         case 4          % only bds-rows
             shift = shift .* Epoch.bds;
         case 5          % only qzss-rows
-            shift = shift .* Epoch.qzss;            
+            shift = shift .* Epoch.qzss;
     end
     % apply phase-shift following RINEX 3 specification which says:
     % phi_RINEX = PHI_original + phase_shift
@@ -54,7 +54,7 @@ end
 
 %% (3) Get observations
 % Get the observations from the observation matrix and save them into Epoch.
-% Thereby, remove Satellites with specific observations of value 0 or NaN. 
+% Thereby, remove Satellites with specific observations of value 0 or NaN.
 [Epoch] = get_obs(Epoch, obs, settings);
 
 % set zeros (=missing observations) in Epoch.C3/L3/S3 to NaN
@@ -70,6 +70,7 @@ m = numel(Epoch.sats);                      % number of satellites in current ep
 num_freq = settings.INPUT.proc_freqs;       % number of processed frequencies
 Epoch.code  = zeros(m, num_freq);
 Epoch.phase = zeros(m, num_freq);
+Epoch.doppler = zeros(m, num_freq);
 Epoch.C1_bias = zeros(m,1);
 Epoch.C2_bias = zeros(m,1);
 Epoch.C3_bias = zeros(m,1);
@@ -85,3 +86,22 @@ Epoch.fixable = true(m, num_freq);          % boolean, satellite usable for fixi
 if isempty(Epoch.L1); Epoch.L1 = zeros(m,1); end
 if isempty(Epoch.L2); Epoch.L2 = zeros(m,1); end
 if isempty(Epoch.L3); Epoch.L3 = zeros(m,1); end
+
+% number of satellites in current epoch
+Epoch.no_sats = numel(Epoch.sats);
+
+
+%% (5) wavelength and frequency
+% frequency
+f1 = Epoch.gps .* Const.GPS_F(strcmpi(DEF.freq_GPS_names,settings.INPUT.gps_freq{1})) + Epoch.gal .* Const.GAL_F(strcmpi(DEF.freq_GAL_names,settings.INPUT.gal_freq{1})) + Epoch.bds .* Const.BDS_F(strcmpi(DEF.freq_BDS_names,settings.INPUT.bds_freq{1})) + Epoch.qzss .* Const.QZSS_F(strcmpi(DEF.freq_QZSS_names,settings.INPUT.qzss_freq{1}) );
+f2 = Epoch.gps .* Const.GPS_F(strcmpi(DEF.freq_GPS_names,settings.INPUT.gps_freq{2})) + Epoch.gal .* Const.GAL_F(strcmpi(DEF.freq_GAL_names,settings.INPUT.gal_freq{2})) + Epoch.bds .* Const.BDS_F(strcmpi(DEF.freq_BDS_names,settings.INPUT.bds_freq{2})) + Epoch.qzss .* Const.QZSS_F(strcmpi(DEF.freq_QZSS_names,settings.INPUT.qzss_freq{2}) );
+f3 = Epoch.gps .* Const.GPS_F(strcmpi(DEF.freq_GPS_names,settings.INPUT.gps_freq{3})) + Epoch.gal .* Const.GAL_F(strcmpi(DEF.freq_GAL_names,settings.INPUT.gal_freq{3})) + Epoch.bds .* Const.BDS_F(strcmpi(DEF.freq_BDS_names,settings.INPUT.bds_freq{3})) + Epoch.qzss .* Const.QZSS_F(strcmpi(DEF.freq_QZSS_names,settings.INPUT.qzss_freq{3}) );
+f1(Epoch.glo) = Epoch.f1_glo;
+f2(Epoch.glo) = Epoch.f2_glo;
+f3(Epoch.glo) = Epoch.f3_glo;
+Epoch.f1 = f1;   Epoch.f2 = f2;   Epoch.f3 = f3;
+% wavelength
+lam1 = Const.C ./ f1;
+lam2 = Const.C ./ f2;
+lam3 = Const.C ./ f3;
+Epoch.l1 = lam1;   Epoch.l2 = lam2;   Epoch.l3 = lam3;

@@ -39,7 +39,7 @@ if settings.INPUT.bool_realtime || ...
 	satellites.obs = satellites.obs(eps,:);
     satellites.elev = satellites.elev(eps,:);
     satellites.az = satellites.az(eps,:);
-    if settings.ADJ.satellite.bool; satellites.bore = satellites.bore(eps,:); end
+    if settings.KINE.satellite.bool; satellites.bore = satellites.bore(eps,:); end
     satellites.SNR_1 = satellites.SNR_1(eps,:);
     if num_freqs > 1; satellites.SNR_2 = satellites.SNR_2(eps,:); end
     if num_freqs > 2; satellites.SNR_3 = satellites.SNR_3(eps,:); end
@@ -124,7 +124,7 @@ if settings.INPUT.bool_realtime || ...
 	storeData.cs_found          = storeData.cs_found(eps,:);
     storeData.zwd               = storeData.zwd(eps,:);
     storeData.zhd               = storeData.zhd(eps,:);
-    if strcmpi(settings.PROC.method,'Code + Phase')
+    if contains(settings.PROC.method,'+ Phase')
         if ~strcmp(settings.IONO.model, 'GRAPHIC')
             storeData.residuals_phase_1 = storeData.residuals_phase_1(eps,:);
         end
@@ -135,6 +135,15 @@ if settings.INPUT.bool_realtime || ...
             storeData.residuals_phase_3 = storeData.residuals_phase_3(eps,:);
         end
     end
+    if contains(settings.PROC.method,'+ Doppler')
+        storeData.residuals_doppler_1 = storeData.residuals_doppler_1(eps,:);
+        if proc_freqs > 1
+            storeData.residuals_doppler_2 = storeData.residuals_doppler_2(eps,:);
+        end
+        if proc_freqs > 2
+            storeData.residuals_doppler_3 = storeData.residuals_doppler_3(eps,:);
+        end
+    end   
     
     % cycle slip detection
     if settings.OTHER.CS.l1c1               % L1-C1

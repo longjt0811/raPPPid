@@ -20,8 +20,10 @@ function dZTD = TropoDifference(storeData, obs, PlotStruct)
 % *************************************************************************
 
 
-% check if ZTD needs to be extracted
-if ~PlotStruct.tropo
+% check if ZTD needs to be extracted and can be extracted
+if ~PlotStruct.tropo || ...
+        (PlotStruct.float && isempty(storeData.param    )) || ...
+        (PlotStruct.fixed && isempty(storeData.param_fix))        
     dZTD = []; 
     return
 end

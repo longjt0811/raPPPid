@@ -9,7 +9,8 @@ function [satellites, storeData, model_save, obs] = ...
 
 proc_freqs = settings.INPUT.proc_freqs;		% number of processed frequencies
 num_freqs = settings.INPUT.num_freqs;       % number of input frequencies
-
+bool_phase = contains(settings.PROC.method,'+ Phase');  % phase processed?
+bool_doppler = contains(settings.PROC.method,'+ Doppler');  % Doppler processed?
 
 %% use sparse to save disk space
 % --- model_save
@@ -164,7 +165,7 @@ end
 satellites.obs      = sparse(satellites.obs);
 satellites.elev     = sparse(satellites.elev);
 satellites.az       = sparse(satellites.az);
-if settings.ADJ.satellite.bool
+if settings.KINE.satellite.bool
 	satellites.bore      = sparse(satellites.bore);
 end
 	
@@ -184,7 +185,7 @@ end
 % --- variables depending on number of processed frequencies
 % frequency 1
 storeData.residuals_code_1  = sparse(storeData.residuals_code_1);
-if strcmpi(settings.PROC.method,'Code + Phase')
+if bool_phase
     storeData.N_1               = sparse(storeData.N_1);
     storeData.N_var_1           = sparse(storeData.N_var_1);
 	if ~strcmp(settings.IONO.model, 'GRAPHIC')
@@ -195,10 +196,11 @@ if strcmpi(settings.PROC.method,'Code + Phase')
         storeData.residuals_phase_fix_1 = sparse(storeData.residuals_phase_fix_1);
     end
 end
+if bool_doppler; storeData.residuals_doppler_1 = sparse(storeData.residuals_doppler_1); end
 % frequency 2
 if proc_freqs > 1
     storeData.residuals_code_2 = sparse(storeData.residuals_code_2);
-    if strcmpi(settings.PROC.method,'Code + Phase')
+    if bool_phase
         storeData.N_2 = sparse(storeData.N_2);
         storeData.N_var_2 = sparse(storeData.N_var_2);
         storeData.residuals_phase_2 = sparse(storeData.residuals_phase_2);
@@ -207,11 +209,12 @@ if proc_freqs > 1
             storeData.residuals_phase_fix_2 = sparse(storeData.residuals_phase_fix_2);
         end
     end
+    if bool_doppler; storeData.residuals_doppler_2 = sparse(storeData.residuals_doppler_2); end
 end
 % frequency 3
 if proc_freqs > 2
     storeData.residuals_code_3  = sparse(storeData.residuals_code_3);
-    if strcmpi(settings.PROC.method,'Code + Phase')
+    if bool_phase
         storeData.N_3 = sparse(storeData.N_3);
         storeData.N_var_3 = sparse(storeData.N_var_3);
         storeData.residuals_phase_3 = sparse(storeData.residuals_phase_3);
@@ -220,6 +223,7 @@ if proc_freqs > 2
             storeData.residuals_phase_fix_3 = sparse(storeData.residuals_phase_fix_3);
         end
     end
+    if bool_doppler; storeData.residuals_doppler_3 = sparse(storeData.residuals_doppler_3); end
 end
 
 

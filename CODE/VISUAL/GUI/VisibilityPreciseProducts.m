@@ -33,8 +33,18 @@ handles.checkbox_MGEX.Visible = 'On';
 switch prec_prod_source
     
     case 'IGS'
-        handles.checkbox_MGEX.Visible = 'Off';
-        
+        handles.checkbox_MGEX.Visible = 'On';
+        if handles.checkbox_MGEX.Value
+            handles.radiobutton_prec_prod_final.Enable = 'On';
+            handles.radiobutton_prec_prod_rapid.Enable = 'Off';
+            handles.radiobutton_prec_prod_ultrarapid.Enable = 'Off';
+        else
+            handles.radiobutton_prec_prod_final.Enable = 'On';
+            handles.radiobutton_prec_prod_rapid.Enable = 'On';
+            handles.radiobutton_prec_prod_ultrarapid.Enable = 'On';
+        end
+
+
     case 'ESA'
         if handles.checkbox_MGEX.Value
             handles.radiobutton_prec_prod_final.Enable = 'On';
@@ -92,6 +102,13 @@ switch prec_prod_source
         handles.radiobutton_prec_prod_ultrarapid.Enable = 'Off';
         handles.checkbox_MGEX.Value = 1;
         
+    case 'WCC'
+        handles.uibuttongroup_prec_prod_type.Visible = 'On';
+        handles.radiobutton_prec_prod_final.Enable = 'On';
+        handles.radiobutton_prec_prod_rapid.Enable = 'On';
+        handles.radiobutton_prec_prod_ultrarapid.Enable = 'Off';
+        handles.checkbox_MGEX.Value = 1;
+
     case 'JGX'
         handles.radiobutton_prec_prod_final.Enable = 'On';
         handles.radiobutton_prec_prod_rapid.Enable = 'On';

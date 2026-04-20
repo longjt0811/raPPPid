@@ -33,14 +33,16 @@ no_sats = numel(prns);        	% number of satellites in current epoch
 s_f = no_sats*proc_frqs;     	% #satellites x #frequencies
 bool_float = Adjust.float;      % true if float position is achieved in current epoch
 decoupled_clock_model = strcmp(settings.IONO.model, 'Estimate, decoupled clock');
+bool_phase = contains(settings.PROC.method,'+ Phase');      % true if phase processed
+bool_doppler = contains(settings.PROC.method,'+ Doppler');      % true if phase processed
 
 
 %% satellite variables
 satellites.obs(q,prns)  = Epoch.tracked(prns);  	% save number of epochs satellite is tracked
 satellites.elev(q,prns) = model.el(:,1);	% save elevation of satellites
 satellites.az  (q,prns) = model.az(:,1); 	% save azimuth [°] of satellites
-if settings.ADJ.satellite.bool
-	satellites.bore(q,prns) = model.bore; 	% save boresight angle [°] of satellites
+if settings.KINE.satellite.bool
+	satellites.bore(q,prns) = model.bore(:,1); 	    % save boresight angle [°] of satellites
 end
 
 % Save Carrier-to-Noise density
@@ -57,13 +59,13 @@ end
 % Doppler measurements
 if settings.EXP.satellites_D
     if ~isempty(Epoch.D1)
-        satellites.D1(q,prns) = Epoch.D1';
+        satellites.D1(q,prns) = Epoch.D1 ./ Epoch.l1;   % convert back to [Hz]
     end
     if ~isempty(Epoch.D2)
-        satellites.D2(q,prns) = Epoch.D2';
+        satellites.D2(q,prns) = Epoch.D2 ./ Epoch.l2;   % convert back to [Hz]
     end
     if ~isempty(Epoch.D3)
-        satellites.D3(q,prns) = Epoch.D3';
+        satellites.D3(q,prns) = Epoch.D3 ./ Epoch.l3;   % convert back to [Hz]
     end
 end
 
@@ -72,7 +74,7 @@ end
 
 %% adjustment variables
 storeData.float(q) = bool_float;    % valid float solution in current epoch?
-if strcmpi(settings.PROC.method,'Code + Phase')
+if bool_phase
     % float ambiguities
 	N_temp = reshape(Adjust.param((NO_PARAM+1):(NO_PARAM+s_f)), 1, no_sats, proc_frqs);
     storeData.N_1(q,prns) = N_temp(:,:,1);      
@@ -81,21 +83,27 @@ if strcmpi(settings.PROC.method,'Code + Phase')
     % residuals from adjustment
     code_rows = 1:2:2*s_f;
 	phase_rows = 2:2:2*s_f;
+    doppler_rows = 2*s_f+1:numel(Adjust.res);
     if strcmp(settings.IONO.model, 'GRAPHIC')
-        storeData.residuals_code_1(q,prns) = Adjust.res;
+        storeData.residuals_code_1(q,prns) = Adjust.res(1:s_f);
+        if bool_doppler; storeData.residuals_doppler_1(q,prns) = Adjust.res(s_f+1:end); end
     else
-        temp_code_res  = reshape(Adjust.res(code_rows), 1, no_sats, proc_frqs);
-        temp_phase_res = reshape(Adjust.res(phase_rows), 1, no_sats, proc_frqs);
+        temp_code_res    = reshape(Adjust.res(code_rows),    1, no_sats, proc_frqs);
+        temp_phase_res   = reshape(Adjust.res(phase_rows),   1, no_sats, proc_frqs);
+        if bool_doppler; temp_doppler_res = reshape(Adjust.res(doppler_rows), 1, no_sats, proc_frqs); end
         storeData.residuals_code_1(q,prns) = temp_code_res(:,:,1);
         storeData.residuals_phase_1(q,prns) = temp_phase_res(:,:,1);
+        if bool_doppler; storeData.residuals_doppler_1(q,prns) = temp_doppler_res(:,:,1); end
     end
     if proc_frqs > 1
         storeData.residuals_code_2(q,prns) = temp_code_res(:,:,2);
         storeData.residuals_phase_2(q,prns) = temp_phase_res(:,:,2);
+        if bool_doppler; storeData.residuals_doppler_2(q,prns) = temp_doppler_res(:,:,2); end
     end
     if proc_frqs > 2
         storeData.residuals_code_3(q,prns) = temp_code_res(:,:,3);
         storeData.residuals_phase_3(q,prns) = temp_phase_res(:,:,3);
+        if bool_doppler; storeData.residuals_doppler_3(q,prns) = temp_doppler_res(:,:,3); end
     end
     if settings.AMBFIX.bool_AMBFIX && Adjust.fixed
         % residuals from fixed solution
@@ -115,12 +123,19 @@ else        % code only processing
     storeData.residuals_code_1(q,prns) = temp_res_code(:,:,1);
     if proc_frqs > 1; storeData.residuals_code_2(q,prns) = temp_res_code(:,:,2); end
     if proc_frqs > 2; storeData.residuals_code_3(q,prns) = temp_res_code(:,:,3); end
+    if bool_doppler
+        temp_res_doppler = reshape(Adjust.res(s_f+1:end), 1, no_sats, proc_frqs);
+        storeData.residuals_doppler_1(q,prns) = temp_res_doppler(:,:,1);
+        if proc_frqs > 1; storeData.residuals_doppler_2(q,prns) = temp_res_doppler(:,:,2); end
+        if proc_frqs > 2; storeData.residuals_doppler_3(q,prns) = temp_res_doppler(:,:,3); end
+    end
 end
+
 
 % covariance matrix of parameters, cell as matrix changes size over time
 storeData.param_sigma{q} = Adjust.param_sigma;
 
-if ~strcmp(settings.ADJ.filter.type,'No Filter')   &&   strcmpi(settings.PROC.method,'Code + Phase')
+if ~strcmp(settings.ADJ.filter.type,'No Filter')   &&   bool_phase
     temp1 = diag( Adjust.param_sigma((NO_PARAM+1):(NO_PARAM+s_f), (NO_PARAM+1):(NO_PARAM+s_f)) );
 	temp2 = reshape(temp1, 1, no_sats, proc_frqs);
     storeData.N_var_1(q,prns) = temp2(:,:,1);
@@ -171,14 +186,14 @@ if settings.OTHER.CS.l1c1
     storeData.cs_L1C1(q,prns) = Epoch.cs_L1C1(1,prns);
     storeData.cs_pred_SF(q,prns) = Epoch.cs_pred_SF(prns);
 end
-if settings.OTHER.CS.DF && strcmpi(settings.PROC.method,'Code + Phase') && ~isempty(Epoch.cs_dL1dL2)
+if settings.OTHER.CS.DF && bool_phase && ~isempty(Epoch.cs_dL1dL2)
     storeData.cs_dL1dL2(q,:)   = Epoch.cs_dL1dL2;
     if settings.INPUT.num_freqs > 2
         storeData.cs_dL1dL3(q,:)   = Epoch.cs_dL1dL3;
         storeData.cs_dL2dL3(q,:)   = Epoch.cs_dL2dL3;
     end
 end
-if settings.OTHER.CS.Doppler  && strcmpi(settings.PROC.method,'Code + Phase') && ~isempty(Epoch.old.usable) && Epoch.old.usable == 1
+if settings.OTHER.CS.Doppler  && bool_phase && ~isempty(Epoch.old.usable) && Epoch.old.usable == 1
     storeData.cs_L1D1_diff(q,prns)   = Epoch.cs_L1D1_diff(prns);
     storeData.cs_L2D2_diff(q,prns)   = Epoch.cs_L2D2_diff(prns);
     storeData.cs_L3D3_diff(q,prns)   = Epoch.cs_L3D3_diff(prns);
@@ -186,7 +201,7 @@ end
 if settings.OTHER.CS.TimeDifference     % time difference
     storeData.cs_L1_diff(q,prns) = Epoch.cs_L1_diff;
 end
-if settings.OTHER.CS.HMW && strcmpi(settings.PROC.method,'Code + Phase') && ~isempty(Epoch.old.cs_HMW)
+if settings.OTHER.CS.HMW && bool_phase && ~isempty(Epoch.old.cs_HMW)
     % calculate difference between average and current value of WL
     % ambiguity and save (WL ambiguity difference and variance)
     WL_diff = abs(Epoch.cs_HMW - Epoch.old.cs_HMW_av(:,prns));  
@@ -277,7 +292,7 @@ end
 
 %% multipath variables
 % handled in PPP_main.m
-if settings.INPUT.num_freqs >= 3 && strcmpi(settings.PROC.method,'Code + Phase')
+if settings.INPUT.num_freqs >= 3 && bool_phase
     storeData.MP_c(q,prns) = Epoch.MP_c;
     storeData.MP_p(q,prns) = Epoch.MP_p;
 end
@@ -299,20 +314,19 @@ variances = diag(Adjust.param_sigma);
 storeData.param_var(q,:) = variances(1:NO_PARAM);
 
 % --- Quality Values ---
-A = Adjust.A;       % get Design-Matrix
+A = Adjust.A;                   % get Design-Matrix
 A(isnan(Adjust.omc), :) = 0;    % remove NaNs for building inverse matrix in next line
-Q_all = pinv(A'*A); 	% without weights
+Q_all = pinv(A'*A); 	        % without weights
 Qxyz  = Q_all(1:3,1:3);
 
-% Get Functional Dependence XYZ2PhiLamH
-% r = norm(Adjust.param(1:3),'fro');      % [m]
-H = inv(model.R_LL2ECEF);                   % [m]
-Qneu = H*Qxyz*H';                           % [m]
+% get functional dependence in local coordinates (East, North, Up)
+H = inv(model.R_LL2ECEF);       % transformation matrix from ECEF to ENU
+Qneu = H*Qxyz*H';               % [m]
 
-% DOPS
-storeData.PDOP(q) = sqrt(Qxyz(1,1) + Qxyz(2,2) + Qxyz(3,3));
-storeData.HDOP(q) = sqrt(Qneu(1,1) + Qneu(2,2));
-storeData.VDOP(q) = sqrt(Qneu(3,3));
+% Dilutions of Precision (DOPs)
+storeData.PDOP(q) = sqrt(Qxyz(1,1) + Qxyz(2,2) + Qxyz(3,3));    % Position DOP
+storeData.HDOP(q) = sqrt(Qneu(1,1) + Qneu(2,2));                % Horizontal DOP
+storeData.VDOP(q) = sqrt(Qneu(3,3));                            % Vertical DOP
 
 % ||| loses information! cs_found and exclude have #columns = processed frqs
 storeData.cs_found(q,prns) = any(Epoch.cs_found, 2); 	% true if cycle slip found on any frequency
@@ -334,7 +348,7 @@ storeData.zwd(q) = model.zwd(1);          	% Zenith wet delay
 if settings.EXP.model_save
     % Frequency-dependent stuff:
     j = 1:proc_frqs;
-    if strcmpi(settings.PROC.method,'Code + Phase')
+    if bool_phase
         model_save.phase(q,prns,j) = model.model_phase(:,j);    % modelled phase ranges
     end
     model_save.code(q,prns,j)  = model.model_code(:,j);         % modelled code ranges

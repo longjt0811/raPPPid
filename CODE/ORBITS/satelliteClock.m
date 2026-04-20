@@ -2,13 +2,13 @@ function [dT_clk, noclock] = satelliteClock(sv, Ttr, preciseClk)
 % Calculate precise satellite clock from precise clock file (*.clk).
 %
 % INPUT:
-% 	sv          satellite vehicle number
-% 	Ttr         transmission time (GPStime)
-% 	preciseClk  precise clocks read with read_precise_clocks.m
+% 	sv              satellite vehicle number
+% 	Ttr             transmission time (GPStime)
+% 	preciseClk      precise clocks read with read_precise_clocks.m
 %
 % OUTPUT:
-%   dT_clk      satellite clock correction, [s]
-%   noclock     true if satellite should not be used (missing clock information)
+%   dT_clk          satellite clock correction [s]
+%   noclock         true if satellite should not be used (missing clock information)
 % 
 % uses lininterp1 (c) 2010, Jeffrey Wu
 %
@@ -52,3 +52,10 @@ end
 % interpolate satellite clock
 dT_clk = lininterp1(t_prec_clk, value_prec_clk, Ttr);       % linear is fast (results hardly change compared to polynomial)
 
+
+
+
+% % approximate satellite clock drift
+% diff_clk = preciseClk.dT(idx+1, sv) - preciseClk.dT(idx, sv);
+% diff_time = (preciseClk.t(idx+1) - preciseClk.t(idx));
+% dT_clk_drift = diff_clk / diff_time;

@@ -26,6 +26,8 @@ function [Epoch, satellites, storeData, obs, model_save, Adjust] = ...
 nnn = DEF.SATS;     % variable size due to raPPPid internal satellite numbering
 
 decoupled_clock_model = strcmp(settings.IONO.model, 'Estimate, decoupled clock');
+bool_phase = contains(settings.PROC.method,'+ Phase');
+bool_doppler = contains(settings.PROC.method,'+ Doppler');
 
 proc_frqs = settings.INPUT.proc_freqs;		% number of processed frequencies
 num_frqs = settings.INPUT.num_freqs;        % number of input frequencies
@@ -44,7 +46,7 @@ tot_eps = settings.PROC.epochs(2) - settings.PROC.epochs(1) + 1;
 % ambiguities)
 Adjust.NO_PARAM = DEF.NO_PARAM_ZD;
 Adjust.ORDER_PARAM = DEF.PARAM_ZD;
-if decoupled_clock_model
+if decoupled_clock_model                            % Decoupled Clock Model is used
     Adjust.NO_PARAM = DEF.NO_PARAM_DCM;
 	Adjust.ORDER_PARAM = DEF.PARAM_DCM;
 end   
@@ -63,7 +65,8 @@ Adjust.A = [];          % Design Matrix (aka Observation Matrix)
 Adjust.P = [];          % weight matrix of the observations
 Adjust.Q = [];          % covariance matrix of the observations
 Adjust.omc = [];        % observed minus computed
-Adjust.res = [];        % residuals for code and phase observations
+Adjust.res = [];        % residuals of code and phase observations
+Adjust.res_doppler = [];% residuals of Doppler observations
 % fields for PPP-AR
 Adjust.fix_now = [false false];
 Adjust.A_fix  	= [];	% Design Matrix of the fixed solution
@@ -111,6 +114,7 @@ end
 
 
 %% Epoch
+Epoch.bool_2nd = false;      % boolean for 2nd (e.g., backward) run
 % time
 Epoch.gps_time = [];
 Epoch.gps_week = [];
@@ -124,6 +128,7 @@ Epoch.LLI_bit_rinex = [];       % LLI bit from Rinex file
 Epoch.ss_digit_rinex = [];      % signal strength value from Rinex file
 Epoch.code  = [];
 Epoch.phase = [];
+Epoch.doppler = [];
 Epoch.C1 = [];          % code observations on 1st frequency
 Epoch.C2 = [];          % code observations on 2nd frequency
 Epoch.C3 = [];          % code observations on 3rd frequency
@@ -254,20 +259,23 @@ end
 storeData.N_1    = zeros(tot_eps,nnn);              % float ambiguities
 storeData.N_var_1 = zeros(tot_eps,nnn);             % variance of float ambiguities
 storeData.residuals_code_1 = zeros(tot_eps,nnn);
-if strcmpi(settings.PROC.method,'Code + Phase') && ~strcmp(settings.IONO.model, 'GRAPHIC')
+if bool_phase && ~strcmp(settings.IONO.model, 'GRAPHIC')
     storeData.residuals_phase_1 = zeros(tot_eps,nnn);
 end
+if bool_doppler; storeData.residuals_doppler_1 = zeros(tot_eps,nnn); end
 if proc_frqs > 1
     storeData.N_2    = zeros(tot_eps,nnn);
     storeData.N_var_2 = zeros(tot_eps,nnn);
     storeData.residuals_code_2 = zeros(tot_eps,nnn);
-    if strcmpi(settings.PROC.method,'Code + Phase'); storeData.residuals_phase_2 = zeros(tot_eps,nnn); end
+    if bool_phase;   storeData.residuals_phase_2   = zeros(tot_eps,nnn); end
+    if bool_doppler; storeData.residuals_doppler_2 = zeros(tot_eps,nnn); end
 end
 if proc_frqs > 2
     storeData.N_3    = zeros(tot_eps,nnn);
     storeData.N_var_3 = zeros(tot_eps,nnn);
     storeData.residuals_code_3 = zeros(tot_eps,nnn);
-    if strcmpi(settings.PROC.method,'Code + Phase'); storeData.residuals_phase_3 = zeros(tot_eps,nnn); end
+    if bool_phase;   storeData.residuals_phase_3   = zeros(tot_eps,nnn); end
+    if bool_doppler; storeData.residuals_doppler_3 = zeros(tot_eps,nnn); end
 end
 
 % intialize reference satellites (used for PPP-AR and DCM)
@@ -348,7 +356,7 @@ if settings.OTHER.CS.TimeDifference
     storeData.cs_L1_diff	= zeros(tot_eps,nnn); % phase (L1) difference of last n epochs
 end
 % HMW LC
-if settings.OTHER.CS.DF
+if settings.OTHER.CS.HMW
     storeData.cs_WL_12_diff = zeros(tot_eps,nnn);
     storeData.cs_var_12    = zeros(tot_eps,nnn);
     if settings.INPUT.num_freqs > 2
@@ -405,7 +413,7 @@ end
 satellites.elev   = zeros(tot_eps,nnn);		% elevation [°]
 satellites.az     = zeros(tot_eps,nnn);		% azimuth [°]
 satellites.obs    = zeros(tot_eps,nnn);   	% true if satellite observed
-if settings.ADJ.satellite.bool
+if settings.KINE.satellite.bool
     satellites.bore = zeros(tot_eps,nnn);	% boresight angle [°]
 end
 

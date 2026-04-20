@@ -64,7 +64,7 @@ else
 end
 
 % Start-date in different time-formats
-hour = obs.startdate(4) + obs.startdate(5)/60 + obs.startdate(6)/3660;
+hour = obs.startdate(4) + obs.startdate(5)/60 + obs.startdate(6)/3600;
 obs.startdate_jd = cal2jd_GT(obs.startdate(1),obs.startdate(2), obs.startdate(3) + hour/24);
 [obs.doy, ~] = jd2doy_GT(obs.startdate_jd);
 [obs.startGPSWeek, obs.startSow] = cal2gpstime(obs.startdate);
@@ -144,9 +144,18 @@ for q = 1:n
     if ~isempty(Epoch.S2); satellites.SNR_2(q,prns) = Epoch.S2'; end
     if ~isempty(Epoch.S3); satellites.SNR_3(q,prns) = Epoch.S3'; end
     % save Doppler measurements
-    if ~isempty(Epoch.D1); satellites.D1(q,prns) = Epoch.D1'; end
-    if ~isempty(Epoch.D2); satellites.D2(q,prns) = Epoch.D2'; end
-    if ~isempty(Epoch.D3); satellites.D3(q,prns) = Epoch.D3'; end
+    if ~isempty(Epoch.D1)
+        Epoch.D1 = Epoch.D1 ./ Epoch.l1;        % convert back to [Hz]
+        satellites.D1(q,prns) = Epoch.D1'; 
+    end
+    if ~isempty(Epoch.D2) 
+        Epoch.D2 = Epoch.D2 ./ Epoch.l2;        % convert back to [Hz]
+        satellites.D2(q,prns) = Epoch.D2'; 
+    end
+    if ~isempty(Epoch.D3) 
+        Epoch.D3 = Epoch.D3 ./ Epoch.l3;        % convert back to [Hz]
+        satellites.D3(q,prns) = Epoch.D3'; 
+    end
     % observations
     storeData.C1(q,prns) = Epoch.C1;
     storeData.C1_bias(q,prns) = Epoch.C1_bias;
@@ -232,6 +241,7 @@ L1 = storeData.L1; L1(L1==0) = NaN;
 L2 = storeData.L2; L2(L2==0) = NaN;
 L3 = storeData.L3; L3(L3==0) = NaN;
 
+
 %     -+-+-+-+- Figures: Signal Quality Plots  -+-+-+-+-
 satellites.CL_1 = C1 - L1;
 satellites.CL_2 = C2 - L2;
@@ -288,6 +298,28 @@ if obs.interval <= 15 	% this plots make only sense for high-rate observation da
         PlotObsDiff(epochs, D3_diff, label_x_epc, rgb, 'D3' , settings, satellites.obs, NaN, settings.OTHER.CS.TD_degree, '[Hz]', print_std, obs);
     end
 end
+
+
+
+
+% check for huge discrepancy between code and phase observations
+bool_adjustphase2code = false;
+if any(satellites.CL_1(:) > 1e4)
+    fprintf(2, '\nHuge difference between code and phase on frequency 1!\n')
+    bool_adjustphase2code = true;
+end
+if any(satellites.CL_2(:) > 1e4)
+    fprintf(2, '\nHuge difference between code and phase on frequency 2!\n')
+    bool_adjustphase2code = true;
+end
+if any(satellites.CL_3(:) > 1e4)
+    fprintf(2, '\nHuge difference between code and phase on frequency 3!\n')
+    bool_adjustphase2code = true;
+end
+if bool_adjustphase2code
+    fprintf(2, 'Please activate "Adjust phase to code" (Run > Processing Options).\n')
+end
+
 
 
 % %% IGS satellite metadata file

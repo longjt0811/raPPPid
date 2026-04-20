@@ -47,6 +47,11 @@ classdef F
         KFI_dcb_std_dcm     = 300000;
         KFI_dcb_noise_dcm   = 300000;
        
+        % receiver clock drift
+        KFI_rclk_drift_std   = 3e5;
+        KFI_rclk_drift_noise = 30;
+        KFI_rclk_drift_model = 1;
+
         % float ambiguities
         KFI_amb_std         = 20;
         KFI_amb_noise       = 0;
@@ -109,6 +114,11 @@ classdef F
         K_dcb_noise_dcm     = 300000;
         K_dcb_model_dcm     = 1;
         
+        % receiver clock drift
+        K_rclk_drift_std   = 30000;
+        K_rclk_drift_noise = 30;
+        K_rclk_drift_model = 1;
+
         % float ambiguities
         K_amb_std           = 2;
         K_amb_noise         = 0;

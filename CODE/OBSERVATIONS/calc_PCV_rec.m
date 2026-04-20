@@ -1,7 +1,8 @@
 function [dX_PCV_rec, los_PCV_r] = ...
     calc_PCV_rec(PCV_rec, j, el, az, settings, f1, f2, f3)
 % This function calculates the receiver phase center variations for a
-% specific GNSS satellite and the processed frequencies
+% specific GNSS satellite and the processed frequencies. Currently, it
+% takes the nearest available correction (NO interpolation).
 %
 % INPUT:
 %	PCV_rec         phase center variations from antex file
@@ -46,10 +47,7 @@ else    % raster in azimuth and zenith angle, take nearest PCV correction (no in
     idx_azi = find(d_azi == min(d_azi),1);	% index of nearest PCV in azimuth
     idx_ztd = find(d_zen == min(d_zen),1); 	% ... and zenith distance
     los_PCV_r(j) = PCV_rec_frq(idx_azi, idx_ztd, j); 	% get PCV for processed frequencies
-%     % interpolation, makes results worse
-%     for i = j
-%         dX_PCV(i) = lininterp2(rec_PCV_azi, rec_PCV_zen, PCV_rec_frq(:,:,i), az, ztd);
-%     end    
+    % |||consider interpolation here (do not expect an impact on the results because at/below mm)
 end
 
 % convert to processed frequency

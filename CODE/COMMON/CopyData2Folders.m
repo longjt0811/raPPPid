@@ -143,6 +143,16 @@ for i = 1:n
     end
 end
 
+% Allow user to delete data from original location
+choice = questdlg('Would you like to delete the data from the original location?', 'Delete data?', ...
+    'Yes', 'No', 'No');
+if strcmp(choice, 'Yes')
+    for ii = 1:n
+        delete(FILEPATHS{ii});
+    end
+end
+
+% print success message at the end
 msgbox('CopyData2Folders has finished.', 'Achievement', 'help')
 
 

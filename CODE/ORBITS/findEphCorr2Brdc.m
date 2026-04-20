@@ -36,7 +36,6 @@ function Epoch = findEphCorr2Brdc(Epoch, input, settings)
 % ||| tom is not considered here!
 % tom == 9.999000000000e+08 -> unknown
 
-t = Epoch.gps_time;                 % GPS time of current epoch
 corr2brdc = settings.ORBCLK.corr2brdc_clk || settings.ORBCLK.corr2brdc_orb;
 
 if corr2brdc
@@ -57,7 +56,9 @@ for i = 1:n
     sat = Epoch.sats(i);    % raPPPid satellite number
     sv = mod(sat,100);  	% get current satellite-number
     col = [];              	% initialize broadcast column
-      
+    t = Epoch.gps_time;     % GPS time of current epoch
+   
+  
     % get data depending on GNSS
     if Epoch.gps(i) && settings.INPUT.use_GPS
         Eph_gnss = input.ORBCLK.Eph_GPS;  	% read-in broadcast ephemerides from navigation file, matrix

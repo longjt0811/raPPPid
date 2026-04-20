@@ -104,7 +104,7 @@ rec_clk_error = storeData.param(:, bool_rec_clk_error);
 % -> subtract receiver (code) clock error of first processed GNSS
 % (for all other GNSS a receiver clock offset is estimated)
 if settings.INPUT.use_GPS
-    t_epoch = gpstime - rec_clk_error(:,1)/Const.C;
+    t_epoch = gpstime    - rec_clk_error(:,1)/Const.C;
 elseif settings.INPUT.use_GLO
     t_epoch = gpstime - rec_clk_error(:,2)/Const.C;
 elseif settings.INPUT.use_GAL
@@ -117,6 +117,26 @@ else
     t_epoch = gpstime;
 end
 
+% create UTC time for export, consider receiver clock error in the same way
+% as above
+if settings.EXP.results_csv && settings.EXP.bool_csv_utc
+    if settings.INPUT.use_GPS
+        utc = storeData.time - seconds(rec_clk_error(:,1)/Const.C) - seconds(obs.leap_sec);
+    elseif settings.INPUT.use_GLO
+        utc = storeData.time - seconds(rec_clk_error(:,2)/Const.C) - seconds(obs.leap_sec);
+    elseif settings.INPUT.use_GAL
+        utc = storeData.time - seconds(rec_clk_error(:,3)/Const.C) - seconds(obs.leap_sec);
+    elseif settings.INPUT.use_BDS
+        utc = storeData.time - seconds(rec_clk_error(:,4)/Const.C) - seconds(obs.leap_sec);
+    elseif settings.INPUT.use_QZSS
+        utc = storeData.time - seconds(rec_clk_error(:,5)/Const.C) - seconds(obs.leap_sec);
+    else
+        utc = storeData.time - seconds(obs.leap_sec);
+    end
+    % prepare as row for table
+    utc_row = table(utc);
+    utc_row.Properties.VariableNames = {'UTC'};
+end
 
 
 %% Write results_float.txt and results_fixed.txt
@@ -201,34 +221,40 @@ if settings.EXP.results_csv
 
     % ----- (1) results_float.csv -----
     % first part
-    head_1 = {'epoch', 'reset', 'GPS week', 'sow', 'latitude', 'longitude', 'height', 'x_UTM', 'y_UTM', 'zhd model', 'zwd model'};
+    head_1 = {'epoch', 'reset', 'GPS_week', 'sow', 'latitude', 'longitude', 'height', 'x_UTM', 'y_UTM', 'zhd_model', 'zwd_model'};  % avoid whitespaces! (older Matlab versions)
     M_1 =    [ epchs', reset_float, gpsweek, t_epoch, posFloat_geo, posFloat_utm(:,1:2), storeData.zhd, storeData.zwd];
     % second part
     head_2 = storeData.ORDER_PARAM';
     M_2    = storeData.param;
-    % put together and write to file
+    % put together
     FLOAT = array2table([M_1 M_2], 'VariableNames', [head_1 head_2]);
+    if settings.EXP.bool_csv_utc        
+        FLOAT = [utc_row FLOAT];                % insert UTC time to table FLOAT
+    end
+    % write to file 
     writetable(FLOAT, [settings.PROC.output_dir '/results_float.csv']);
 
 
     % ----- (2) results_fixed.csv -----
     if settings.AMBFIX.bool_AMBFIX
         % first part
-        head_1 = {'epoch', 'reset', 'GPS week', 'sow', 'latitude', 'longitude', 'height', 'x_UTM', 'y_UTM', 'zhd model', 'zwd model'};
+        head_1 = {'epoch', 'reset', 'GPS_week', 'sow', 'latitude', 'longitude', 'height', 'x_UTM', 'y_UTM', 'zhd_model', 'zwd_model'};  % avoid whitespaces! (older Matlab versions)
         M_1 =    [ epchs', reset_fixed, gpsweek, t_epoch, posFixed_geo, posFixed_utm(:,1:2), storeData.zhd, storeData.zwd];
         % second part
         head_2 = storeData.ORDER_PARAM';
         M_2    = storeData.param_fix;
-        % put together and write to file
+        % put together
         FIXED = array2table([M_1 M_2], 'VariableNames', [head_1 head_2]);
+        if settings.EXP.bool_csv_utc
+            FIXED = [utc_row FIXED];            % insert UTC time to table FIXED
+        end
+        % write to file
         writetable(FIXED, [settings.PROC.output_dir '/results_fixed.csv']);
     end
 
 end
 
 %% Write additional files
-posTemp = posFloat_geo;
-if settings.AMBFIX.bool_AMBFIX;    posTemp = posFixed_geo;      end
 
 % --- Write .TRO file (troposphere delay estimation) ---
 if settings.EXP.tropo_est
@@ -237,25 +263,47 @@ end
 
 % --- Export to result.nmea ---
 if settings.EXP.nmea
+    % prepare writing nmea file
     if 1 < settings.INPUT.use_GPS + settings.INPUT.use_GLO + settings.INPUT.use_GAL + settings.INPUT.use_BDS
         str_sol = 'GN';        % create beginn of NMEA message depending on processed GNSS
     elseif settings.INPUT.use_GPS;        str_sol = 'GP';
     elseif settings.INPUT.use_GLO;        str_sol = 'GL';
     elseif settings.INPUT.use_GAL;        str_sol = 'GA';
-    elseif settings.INPUT.use_BDS;        str_sol = 'BD';  
+    elseif settings.INPUT.use_BDS;        str_sol = 'BD';
     end
     UTC = t_epoch - obs.leap_sec;
-    nmea_path = [settings.PROC.output_dir, '/results.nmea'];
     nsats = sum(full(storeData.C1)~=0,2);   % number of satellites (fishy calculation)
-    createNMEAOutput(UTC, posTemp, nmea_path, str_sol, storeData.HDOP, nsats, obs.startdate);
+
+    % write float results to nmea file
+    nmea_path_float = [settings.PROC.output_dir, '/results_float.nmea'];
+    createNMEAOutput(UTC, posFloat_geo, nmea_path_float, str_sol, storeData.HDOP, nsats, obs.startdate);
+    
+    % write fixed results to nmea file
+    if settings.AMBFIX.bool_AMBFIX
+        nmea_path_fixed = [settings.PROC.output_dir, '/results_fixed.nmea'];
+        createNMEAOutput(UTC, posFixed_geo, nmea_path_fixed, str_sol, storeData.HDOP, nsats, obs.startdate);
+    end
 end
 
 % --- Export positions to trajectory.kml (e.g., for Google Earth) ---
 if settings.EXP.kml
-    kml_path = [settings.PROC.output_dir, '/trajectory.kml'];
-    valid = ~any(isnan(posTemp) | isinf(posTemp),2);     % check which epochs are valid
-    kmlwriteline(kml_path, posTemp(valid,1)/pi*180, posTemp(valid,2)/pi*180, posTemp(valid,3), ...
-        'Name', settings.PROC.name, 'Description', settings.PROC.output_dir, 'Color', 'b', 'Alpha', 1, 'LineWidth', 8)
+    % write float results to kml file
+    kml_path_float = [settings.PROC.output_dir, '/trajectory_float.kml'];
+    valid = ~any(isnan(posFloat_geo) | isinf(posFloat_geo),2);     % check which epochs are valid
+    if any(valid)
+        kmlwriteline(kml_path_float, posFloat_geo(valid,1)/pi*180, posFloat_geo(valid,2)/pi*180, posFloat_geo(valid,3), ...
+            'Name', settings.PROC.name, 'Description', settings.PROC.output_dir, 'Color', 'b', 'Alpha', 1, 'LineWidth', 8)
+    end
+    
+    % write fixed results to kml file
+    if settings.AMBFIX.bool_AMBFIX
+        kml_path_fixed = [settings.PROC.output_dir, '/trajectory_fixed.kml'];
+        valid = ~any(isnan(posFixed_geo) | isinf(posFixed_geo),2);     % check which epochs are valid
+        if any(valid)
+            kmlwriteline(kml_path_fixed, posFixed_geo(valid,1)/pi*180, posFixed_geo(valid,2)/pi*180, posFixed_geo(valid,3), ...
+                'Name', settings.PROC.name, 'Description', settings.PROC.output_dir, 'Color', 'r', 'Alpha', 1, 'LineWidth', 8)
+        end
+    end
 end
 
 % --- Write .sp3 file ---

@@ -20,10 +20,8 @@ if ~contains(pwd, 'WORK')
     return
 end
 
-% create file paths
-netrc_path = '../CODE/OBSERVATIONS/ObservationDownload/cURL/';
-netrc_file = '.netrc';
-netrc = [netrc_path netrc_file];
+% create file path
+netrc = [Path.CURL '.netrc'];
 
 clc
 fprintf('\nConnecting CDDIS account.\n');

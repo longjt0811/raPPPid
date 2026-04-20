@@ -35,7 +35,7 @@ obs_phase = Epoch.phase;
 exclude   = Epoch.exclude;
 cs_found  = Epoch.cs_found;
 time_last_reset = round(Epoch.gps_time-Adjust.reset_time);     % time [s] since last reset
-bool_phase = strcmpi(settings.PROC.method,'Code + Phase');
+bool_phase = contains(settings.PROC.method,'+ Phase');
 bool_print = ~settings.INPUT.bool_parfor;
 
 % define some variables

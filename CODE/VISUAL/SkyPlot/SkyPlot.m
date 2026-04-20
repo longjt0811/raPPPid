@@ -332,7 +332,7 @@ switch string_colorcod
         handles.text_unit.String = '[dB-Hz]';
     case 'Code Residuals'
         Value = handles.C_res(idx,:);
-        handles.text_unit.String = '[m]';
+        handles.text_unit.String = '[dm]';
     case 'Phase Residuals'
         Value = handles.P_res(idx,:);
         handles.text_unit.String = '[mm]';

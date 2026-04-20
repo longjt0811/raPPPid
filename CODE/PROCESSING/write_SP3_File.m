@@ -38,7 +38,7 @@ param = storeData.param;
 dt = seconds(time(2) - time(1));
 mjd = obs.startdate_jd - 2400000.5;
 
-SatID = settings.ADJ.satellite.ID;
+SatID = settings.KINE.satellite.ID;
 
 if isdatetime(time)
   tv = datevec(time);
@@ -48,7 +48,7 @@ else
   error('storeData.times must be datetime or Nx6 numeric');
 end
 
-if strcmp(settings.PROC.method,'Code + Phase') 
+if contains(settings.PROC.method,'+ Phase') 
     DataType = 'u+U';
 else
     DataType = 'U';
@@ -68,7 +68,7 @@ fmt = ['#c%c' ...              % "#c" + P/V flag
        '%3s ' ...              % Orbit‐type
        '%4s\n'];               % Agency
 
-fprintf(fid, fmt, 'V', tv(1,1), tv(1,2), tv(1,3), tv(1,4), tv(1,5), tv(1,6), ...
+fprintf(fid, fmt, 'V', tv(1,1), tv(1,2), tv(1,3), tv(1,4), tv(1,5), tv(1,6)-(storeData.param(1,8)/Const.C), ...
         min(q_end,size(param,1)), DataType, obs.coordsyst, 'EXT', 'XXXX');           
 
 % Line # 02: GPS week, SOW, interval, MJD, frac‑day

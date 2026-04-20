@@ -26,7 +26,7 @@ Epoch.cs_L2D2_diff = NaN(1,410);
 Epoch.cs_L3D3_diff = NaN(1,410);
 thresh = settings.OTHER.CS.D_threshold;
 bool_print = ~settings.INPUT.bool_parfor;
-bool_sat = settings.ADJ.satellite.bool;
+bool_sat = settings.KINE.satellite.bool;
 dt = Epoch.gps_time - Epoch.old.gps_time;       % time difference between epochs
 % satellite prns of current epoch
 G_now = Epoch.sats(Epoch.gps);

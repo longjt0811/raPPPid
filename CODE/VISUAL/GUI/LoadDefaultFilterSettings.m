@@ -75,6 +75,11 @@ if strcmp(filter_type, 'Kalman Filter Iterative')
     end
     handles.popupmenu_filter_dcbs_dynmodel.Value = F.KFI_dcb_model + 1;
     
+    % receiver clock drift
+    handles.edit_filter_rec_clk_drift_sigma0.String = sprintf('%.0f', F.KFI_rclk_drift_std);
+    handles.edit_filter_rec_clk_drift_Q.String = sprintf('%.0f', F.KFI_rclk_drift_noise);
+    handles.dynmodel_rclk_drift.Value = F.KFI_rclk_drift_model + 1;
+
     % float ambiguities
     if ~decoupled_clock_model
         handles.edit_filter_ambiguities_sigma0.String = num2str(F.KFI_amb_std);
@@ -161,9 +166,16 @@ elseif strcmp(filter_type, 'Kalman Filter')
         handles.edit_filter_qzss_offset_Q.String = sprintf('%.0f', F.K_clk_offset_noise);
         handles.popupmenu_filter_qzss_offset_dynmodel.Value = F.K_clk_offset_model + 1;
     else
-        
+        handles.edit_filter_qzss_offset_sigma0.String = sprintf('%.0f', F.K_clk_offset_std_dcm);
+        handles.edit_filter_qzss_offset_Q.String = sprintf('%.0f', F.K_clk_offset_noise_dcm);
+        handles.popupmenu_filter_qzss_offset_dynmodel.Value = F.K_clk_offset_model_dcm + 1; 
     end
     
+    % receiver clock drift
+    handles.edit_filter_rec_clk_drift_sigma0.String = sprintf('%.0f', F.K_rclk_drift_std);
+    handles.edit_filter_rec_clk_drift_Q.String = sprintf('%.0f', F.K_rclk_drift_noise);
+    handles.dynmodel_rclk_drift.Value = F.K_rclk_drift_model + 1;
+
     % receiver biases
     if ~decoupled_clock_model
         handles.edit_filter_dcbs_sigma0.String = num2str(F.K_dcb_std);

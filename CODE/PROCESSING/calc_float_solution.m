@@ -34,18 +34,21 @@ it = 0; 	                            % number of current iteration
 % Initialize struct model
 model = init_struct_model(no_sats, settings.INPUT.proc_freqs, settings.INPUT.num_freqs);
 
-% check if approximate position exists
-if ~Adjust.float && any(Adjust.param(1:3) == 0 | isnan(Adjust.param(1:3)) | any(Adjust.param(1:3) == 1))
-    % calculate an approximate position (e.g., not known in 1st epoch)
-    xyz_approx = ApproximatePosition(Epoch, input, obs, settings);
-    Adjust.param(1:3) = xyz_approx;
-    if any(Adjust.param_pred(1:3) == 0 | isnan(Adjust.param_pred(1:3)) | any(Adjust.param_pred(1:3) == 1))
-        Adjust.param_pred(1:3) = xyz_approx;    % just take approximate position as predictio
-    end
+% calculate approximate position and velocity for state and predicted state 
+% vector (e.g., dynamic model is zero (no model))
+if any(Adjust.param(1:3) == 0) || any(Adjust.param_pred(1:3) == 0)
+    xyz_ = ApproximatePosition(Epoch, input, obs, settings);
+    if any(Adjust.param(1:3) == 0);      Adjust.param(1:3)      = xyz_; end
+    if any(Adjust.param_pred(1:3) == 0); Adjust.param_pred(1:3) = xyz_; end
+end
+if any(Adjust.param(4:6) == 0) || any(Adjust.param_pred(4:6) == 0)
+    [vel_, ~] = ApproximateVelocity(Epoch, input, obs, settings, Adjust.param(1:3));
+    if any(Adjust.param(4:6) == 0);      Adjust.param(4:6)      = vel_; end
+    if any(Adjust.param_pred(4:6) == 0); Adjust.param_pred(4:6) = vel_; end
 end
 
 % make sure that Kalman Filter has good approximate initial parameters (e.g., huge receiver clock error)
-if ~Adjust.float && strcmp(filter_type, 'Kalman Filter') && ~settings.ADJ.satellite.bool
+if ~Adjust.float && strcmp(filter_type, 'Kalman Filter') && ~settings.KINE.satellite.bool
     % prepare and perform LSQ adjustment with calc_float_solution
     LSQ_setts = settings;
     LSQ_setts.ADJ.filter.type = 'No Filter';
@@ -102,27 +105,31 @@ while it < DEF.ITERATION_MAX_NUMBER
     if settings.PROC.check_omc
         [Epoch, Adjust] = check_omc(Epoch, model, Adjust, settings, obs.interval); 
     end
-    
-    % --- create A-Matrix and observed minus computed
+
+    % --- select reference satellite for decoupled clock model
+    if strcmp(settings.IONO.model, 'Estimate, decoupled clock')
+        Epoch = CheckSatellitesFixable(Epoch, settings, model, input);
+        [Epoch, Adjust] = handleRefSats(Epoch, model.el, settings, Adjust);
+    end
+
+    % --- create A-Matrix and observed-minus-computed vector
     switch settings.PROC.method        % depending on Functional Model
-        case 'Code + Phase'
+        case {'Code + Phase', 'Code + Phase + Doppler'}
             if ~strcmp(settings.IONO.model, 'Estimate, decoupled clock')
-                Adjust = Designmatrix_ZD(Adjust, Epoch, model, settings);
+                [A, omc] = DSM_ZD(Adjust, Epoch, model, settings);
             else
-                Epoch.fixable = CheckSatellitesFixable(Epoch, settings, model, input);
-                [Epoch, Adjust] = handleRefSats(Epoch, model.el, settings, Adjust);
-                Adjust = Designmatrix_DCM(Adjust, Epoch, model, settings);
+                [A, omc] = DSM_DCM(Adjust, Epoch, model, settings);
             end
-        case {'Code Only', 'Code (Doppler Smoothing)', 'Code (Phase Smoothing)'}
-            Adjust = Designmatrix_code_ZD( Adjust, Epoch, model, settings);
-        case 'Code + Doppler'
-            Adjust = Designmatrix_code_doppler_ZD(Adjust, Epoch, model, settings);
-        case 'Doppler'
-            Adjust = Designmatrix_doppler_ZD(Adjust, Epoch, model, settings);            
+        case {'Code + Doppler', 'Code Only', 'Code (Doppler Smoothing)', 'Code (Phase Smoothing)'}
+            [A, omc] = DSM_code_ZD(Adjust, Epoch, model, settings);
         otherwise
             fprintf(2, '\nCheck Processing Method!\n')
-    end     
-    
+    end
+    if contains(settings.PROC.method, ' + Doppler')
+        [A, omc] = DSM_add_Doppler(A, omc, Adjust, Epoch, model, settings);
+    end
+    Adjust.A = A; Adjust.omc = omc;
+        
     % --- create covariance matrix of observations
     Adjust = createObsCovariance(Adjust, Epoch, settings, model.el, model.bore);
     
@@ -132,7 +139,7 @@ while it < DEF.ITERATION_MAX_NUMBER
     n_reject = sum(Epoch.exclude(:) | Epoch.cs_found(:) * strcmp(settings.IONO.model, 'GRAPHIC'));
     if n_observations - n_reject < DEF.MIN_SATS
         % not enough observation for parameter estimation in current epoch
-        fprintf(2, 'Not enough observations (Epoch %d)           \n', Epoch.q)
+        fprintf(2, 'Not enough observations in epoch %d (%s)           \n', Epoch.q, Epoch.rinex_header)
         dx.x(1:3) = 0; Adjust.res = NaN(numel(Adjust.omc),1);
         Adjust.float = false; Adjust.fixed = false;
         return
@@ -161,7 +168,7 @@ while it < DEF.ITERATION_MAX_NUMBER
         case 'Kalman Filter'
             [Adjust.param, Adjust.param_sigma, Adjust.float] = ...
                 KalmanFilter(Adjust.omc, Adjust.A, Adjust.param_pred, Adjust.param_sigma_pred, Adjust.Q);
-            Adjust.res = calc_res(settings, input, Epoch, model, Adjust, obs);
+            [Adjust.res, Adjust.res_doppler] = calc_res(settings, input, Epoch, model, Adjust, obs);
             break;              % no inner-epoch iteration
             
         case 'No Filter'      			% perform single-epoch Standard-LSQ-Adjustment
@@ -192,7 +199,7 @@ end
 
 % Code + Phase - Processing AND at least one satellite is excluded:
 % -> set ambiguities to zero
-if strcmpi(settings.PROC.method, 'Code + Phase') && any(Epoch.exclude(:))         
+if contains(settings.PROC.method, '+ Phase') && any(Epoch.exclude(:))         
     kk = 1:(num_freq*no_sats);
     kk = kk(Epoch.exclude(:));              % index-numbers of satellites and their frequencies under cutoff
     idx_amb = kk+NO_PARAM;                  % indices where to reset
@@ -205,7 +212,7 @@ if contains(settings.IONO.model, 'Estimate') && any(Epoch.exclude(:,1))
     kkk = 1:100;
     kkk = kkk(Epoch.exclude(:,1));      % index-numbers of satellites and their frequencies under cutoff
     idx_iono = kkk+NO_PARAM;            % indices where to reset
-    if strcmpi(settings.PROC.method, 'Code + Phase')
+    if contains(settings.PROC.method, '+ Phase')
         idx_iono = idx_iono + num_freq*no_sats;   % change indices because of ambiguities
     end
     Adjust = reset_param_sigma(Adjust, idx_iono, settings.ADJ.filter.var_iono);
@@ -256,7 +263,7 @@ idx_ = sub2ind(sz, idx, idx);           % convert to linear indices
 Adjust.param_sigma(idx_) = initial_var; % reset variances to initial variance
 
 
-function res = calc_res(settings, input, Epoch, model, Adjust, obs)
+function [res, res_doppler] = calc_res(settings, input, Epoch, model, Adjust, obs)
 % Calculates the post-fit residuals when using a Kalman Filter
 % recalculate error sources and modeled observations since parameters changed
 Adjust.param_pred = Adjust.param;       % replace prediction with current estimation
@@ -264,11 +271,11 @@ los = vecnorm2(model.Rot_X - Adjust.param(1:3));
 model.rho = repmat(los', 1, settings.INPUT.proc_freqs);
 model = getReceiverClockBiases(model, Epoch, Adjust.param, settings);
 [model, Epoch] = modelErrorSources(settings, input, Epoch, model, Adjust, obs);
-[code_model, phase_model] = model_observations(model, Adjust, settings, Epoch);
+[code_model, phase_model, doppler_model] = model_observations(model, Adjust, settings, Epoch);
 % calculate residuals (observation minus modeled observation)
 exclude = Epoch.exclude(:);
 usePhase = ~Epoch.cs_found(:);
-if strcmpi(settings.PROC.method, 'Code + Phase')
+if contains(settings.PROC.method, '+ Phase')
     s_f = numel(Epoch.sats) * settings.INPUT.proc_freqs;    % #sats x # freqs
     res = zeros(s_f, 1);
     code_row = 1:2:2*s_f;   	% rows for code  obs [1,3,5,7,...]
@@ -281,7 +288,11 @@ if strcmpi(settings.PROC.method, 'Code + Phase')
 else
     res = (Epoch.code(:)  - code_model(:))  .*  ~exclude;
 end
-
+res_doppler = [];
+if contains(settings.PROC.method, '+ Doppler')
+    res_doppler = (Epoch.doppler(:)  + doppler_model(:))  .*  ~exclude;
+    res = [res; res_doppler];
+end
 
 
 

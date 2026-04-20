@@ -137,20 +137,33 @@ if strcmpi(settings.IONO.source,'CODE Spherical Harmonics')
     % create folder and prepare the download
     target = {[Path.DATA, 'IONO/', yyyy, '/', doy '/']};
     [~, ~] = mkdir(target{1});
-    URL_host = 'ftp.aiub.unibe.ch:21';
+    host = 'http://www.aiub.unibe.ch/download/';
     URL_folder = {['/CODE/' yyyy '/']};
     if str2double(gpsweek) >= 2238
         file = {['COD0OPSFIN_' yyyy doy '0000_01D_01H_GIM.ION.gz']};
+        decomp = {['COD0OPSFIN_' yyyy doy '0000_01D_01H_GIM.ION']};
     else
         file = {['COD' gpsweek dow '.ION.Z']};
+        decomp = {['COD' gpsweek dow '.ION']};
     end
-    % download, unzip, save file-path
-    file_status = ftp_download(URL_host, URL_folder{1}, file{1}, target{1}, true);
+    % download
+    if ~(isfile([target{1} file{1}]) || isfile(decomp{1}))
+        try
+            websave([target{1} file{1}], [host URL_folder{1} file{1}]);
+            file_status = 1;
+        catch
+            file_status = 0;
+        end
+    else
+        file_status = 1;
+    end
+    % unzip
     if file_status == 1   ||   file_status == 2
         unzip_and_delete(file, target);
     elseif file_status == 0
         errordlg('No CODE Spherical Harmonics found on server. Please specify different source!', 'Error');
     end
+    % save file-path
     [~,file{1},~] = fileparts(file{1});   % remove the zip file extension
     settings.IONO.file_ion = [target{1} '/' file{1}];
 end

@@ -1,14 +1,20 @@
-function [] = vis_res_sats(storeData, sys, settings)
-% Plots Residuals for each satellite as histogram
+function [] = vis_res_sats(storeData, sys, settings, elev, SNR1)
+% Plots residuals for each satellite over epochs together with elevation
+% and carrier-to-noise-density on frequency 1.
 %
 % INPUT:
 %   storeData       struct, collected data from all processed epochs
 %   sys             1-digit-char which represents GNSS (G=GPS, R=Glonass, E=Galileo)
 %   settings        struct, processing settings from GUI
+%   el              elevation [°]
+%   CN0_1           carrier-to-noise density on frequency 1 [dBHz]
+% OUTPUT:
+%   []
 %
 % Revision:
 %   2023/11/09, MFWG: adding QZSS
 %   2024/12/05, MFWG: create plots only for satellites with data
+%   2025/11/24, MFWG: change from histogram to residuals over epochs
 %
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
@@ -16,7 +22,7 @@ function [] = vis_res_sats(storeData, sys, settings)
 
 proc_freq = settings.INPUT.proc_freqs; 	% number of processed frequencies
 
-plot_phase = strcmp(settings.PROC.method, 'Code + Phase') && ...
+plot_phase = contains(settings.PROC.method, '+ Phase') && ...
     ~strcmp(settings.IONO.model, 'GRAPHIC');    % plot phase residuals?
 fixed_on = settings.PLOT.fixed;                 % plot fixed residuals?
 
@@ -40,6 +46,10 @@ switch sys
         col = DEF.COLOR_J;
 end
 
+% get elevation and CN0
+elev = elev(:, loop);
+SNR1 = SNR1(:, loop);
+
 
 % loop over frequencies to plot
 for j = 1:proc_freq
@@ -54,12 +64,13 @@ for j = 1:proc_freq
     code_res_j = full(storeData.(field));
     code_res_j = code_res_j(:, loop);
     code_res_j(code_res_j==0 ) = NaN;
+
+    
     % CODE
-    n_c = round(1 + 3.322*log(numel(code_res_j(:,1))));       % number of bins (Sturge´s Rule)
-    code_str = [sol_str ' code ' sprintf('%d',j) ' residuals'];
+    code_str = [sol_str ' Code ' sprintf('%d',j) ' Residuals'];
     % plot all satellites
     fig_title = [sol_str ' Code ' sprintf('%d',j) ' Residuals, ' char2gnss(sys)];
-    plot_sat_histo(code_res_j, mod(loop,100), n_c, sys, code_str, col, fig_title)
+    plot_sat_res(code_res_j, elev, SNR1, mod(loop,100), sys, code_str, col*0.8, fig_title)
     
     if plot_phase
         % get phase residuals of current frequency (e.g. storeData.residuals_phase_1)
@@ -72,52 +83,69 @@ for j = 1:proc_freq
         phase_res_j = phase_res_j(:, loop);
         phase_res_j(phase_res_j==0 ) = NaN;
         % PHASE
-        n_p = round(1 + 3.322*log(numel(phase_res_j(:,1))));      % number of bins (Sturge´s Rule)
-        phase_str = [sol_str ' phase ' num2str(j) ' residuals'];
+
+        phase_str = [sol_str ' Phase ' num2str(j) ' Residuals'];
         % plot all satellites
         fig_title = [sol_str ' Phase ' sprintf('%d',j) ' Residuals, ' char2gnss(sys)];
-        plot_sat_histo(phase_res_j, mod(loop,100), n_p, sys, phase_str, col/2, fig_title)
+        plot_sat_res(phase_res_j, elev, SNR1,  mod(loop,100), sys, phase_str, col/2, fig_title)
     end
 end
-end
+
 
 
 % Function to plot and style
-function [] = plot_sat_histo(residuals, loop, n, sys, codephase_fr, coleur, fig_title)
+function [] = plot_sat_res(RESID, ELEV, SNR1, loop, sys, codephase_fr, col, fig_title)
 
 % create figure
-figur = figure('Name', fig_title, 'units','normalized', 'outerposition',[0 0 1 1], 'NumberTitle','off');
+fig = figure('Name', fig_title, 'units','normalized', 'outerposition',[0 0 1 1], 'NumberTitle','off');
 ii = 1;         % counter of subplot number
-% add customized datatip
-dcm = datacursormode(figur);
-datacursormode on
-set(dcm, 'updatefcn', @vis_customdatatip_histo)
+
 
 for i = loop
-    if any(~isnan(residuals(:,i)))
+    if any(~isnan(RESID(:,i)))
+
+        % check if new figure is necessary
         if ii == 17
             set(findall(gcf,'type','text'),'fontSize',8)
-            % 16 satellites have been plotted in this window -> it is full
+            % 16 satellites have been plotted in this window -> full
             % -> create new figure
-            figur = figure('Name', fig_title, 'units','normalized', 'outerposition',[0 0 1 1], 'NumberTitle','off');
+            fig = figure('Name', fig_title, 'units','normalized', 'outerposition',[0 0 1 1], 'NumberTitle','off');
             ii = 1; % set counter of subplot number to 1
-            dcm = datacursormode(figur);
-            datacursormode on
-            set(dcm, 'updatefcn', @vis_customdatatip_histo)
         end
-        res = residuals(:,i);           % residuals of current satellite
+
+        % get residuals, elevation and CN0 for current satellite
+        res = RESID(:,i); 
+        if all(isnan(res)); continue; end
+        el = ELEV(:,i); 
+        snr = SNR1(:,i); 
+
+        % plot counter
         subplot(4, 4, ii)
         ii = ii + 1;  	% increase counter of plot number
-        histogram(res, n, 'Normalization', 'probability', 'FaceColor', coleur)
+
+        % plot elevation and CN0
+        yyaxis right
+        hold on
+        plot(el, '-',   'Color', [1 .6 0])
+        plot(snr, '.', 'Color', [1 .4 0], 'MarkerSize', 5)
+        ylabel('[°] and [dBHz]')
+
+        % plot residuals
+        yyaxis left
+        plot(res, '.', 'Color', col)
+        ylabel('[m]')
+
+        % calculate standard-deviation and bias
+        std_ = std(res, 'omitnan');         % standard deviation of current satellite
+        res(isnan(res)) = [];               % remove NaNs
+        n = numel(res);                     % number of residuals (which are not NaN)
+        bia_ = sum(res)/n;                  % bias of the residuals of current satellite
+
+        % style plot
         title({[codephase_fr ': ' sys sprintf('%02d',i)]}, 'fontsize', 11);
-        std_c = std(res, 'omitnan');         	% standard deviation of residuals of current satellite
-        res(isnan(res)) = [];           % remove NaNs
-        no_res = numel(res);            % number of residuals (which are not NaN)
-        bias_c = sum(res)/no_res;       % bias of the residuals of current satellite
-        xlabel(sprintf('%d residuals: std-dev = %2.3f, bias = %2.3f [m]\n', no_res, std_c, bias_c))
-        ylabel('[%]')
-        xlim([-max(abs(res)) max(abs(res))])        % put 0 in the middle of the plot
+        axis on
+        xlabel(['Epochs, ' sprintf('%d res: std = %2.3f, bias = %2.3f [m]\n', n, std_, bia_)])       
+
     end
 end
 set(findall(gcf,'type','text'),'fontSize',8)        % change size of text
-end

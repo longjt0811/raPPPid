@@ -52,10 +52,11 @@ p_13 = plot(dT_all, q68{4}, 'LineStyle', '-', 'Color', [.5 .5 .5], 'LineWidth',2
 p_14 = plot(dT_all, q95{4},	'LineStyle', '-', 'Color', [.3 .3 .3], 'linewidth',2);
 ylabel('2D Position Error [m]')
 xlabel('Time [minutes]')
+title([sprintf('%.0f', n_conv) ' Convergence Periods'])
 if max(q68{4}) < 2          % random threshold to detect geodetic results
     ylim([0 1])
 end
-title([sprintf('%.0f', n_conv) ' Convergence Periods'])
+xlim([0 Inf])
 % create legend
 thresh_str_2D = ['Threshold: ' sprintf('%5.3f', PlotStruct.thresh_2D) ' m'];
 legend([p_12; p_13; p_14; p_11], {thresh_str_2D, '68% Quantile', '95% Quantile', 'Convergence period'})
@@ -78,6 +79,7 @@ xlabel('Time [minutes]')
 if max(q68{5}) < 3          % random threshold to detect geodetic results
     ylim([0 1])
 end
+xlim([0 Inf])
 % create legend
 thresh_str_3D = ['Threshold: ' sprintf('%5.3f', PlotStruct.thresh_3D) ' m'];
 legend([p_22; p_23; p_24; p_21], {thresh_str_3D, '68% Quantile', '95% Quantile', 'Convergence period'})

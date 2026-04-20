@@ -150,9 +150,7 @@ while i <= length(NAV)            % loop from END OF HEADER to end of file
         af0    = lData(8);                          % sv clock bias [s]
         af1    = lData(9);                          % sv clock drift [s/s]
         af2    = lData(10);                         % sv clock drift rate [s/s^2]
-        hour   = hour + minute/60 + second/3600;    % decimal hour of clock
-        jd = cal2jd_GT(year,month,day+hour/24);        % Julian day of clock
-        [~, toc, ~] = jd2gps_GT(jd);                   % ~, seconds of gps-week
+        [~, toc] = cal2gpstime([year month day hour minute second]);
         % -+-+- line 1 -+-+-
         i = i+1;
         line = NAV{i};
@@ -262,19 +260,16 @@ while i <= length(NAV)            % loop from END OF HEADER to end of file
         hour   = lData(5);                          % hour
         minute = lData(6);                          % min
         second = lData(7);                          % sec
-        % calculation of toe in GPS time:
-        jd = cal2jd_GT(year, month, day + hour/24 + minute/1440 + second/86400);
-        [~,sow_utc,~] = jd2gps_GT(jd);
+        % calculation of IOD
+        [~, sow_utc] = cal2gpstime([year month day hour minute second]);
         sod_moscow = mod(round(sow_utc) + 3*3600,86400);
         IOD = floor(sod_moscow/900);
-        jd = jd + leap_sec/(60*60*24);      % Introduction of leap second between GPS and UTC
-        [week,sow,~] = jd2gps_GT(jd);
-        toe = sow;                  % epoch of ephemerides GPS (converted from UTC)
-        woe = week;
+        % calculation of toe in GPS time
+        [woe, toe] = cal2gpstime([year month day hour minute second+leap_sec]);
         % remaining entries
         TauN    = lData(8);         % SV clock bias [s]
         GammaN	= lData(9);         % SV relative frequency bias 
-        tk      = lData(10);        % Meassage frame time in [s] of UTC week
+        tk      = lData(10);        % Message frame time in [s] of UTC week
         % -+-+- line 1 -+-+-
         i = i+1;
         line = NAV{i};
@@ -347,9 +342,7 @@ while i <= length(NAV)            % loop from END OF HEADER to end of file
         af0    = lData(8);                          % sv clock bias [s]
         af1    = lData(9);                          % sv clock drift [s/s]
         af2    = lData(10);                         % sv clock drift rate [s/s^2]
-        hour   = hour + minute/60 + second/3600;    % decimal hour of clock
-        jd = cal2jd_GT(year,month,day+hour/24);        % Julian day of clock
-        [~, toc, ~] = jd2gps_GT(jd);                   % ~, seconds of gps-week
+        [~, toc] = cal2gpstime([year month day hour minute second]);
         % -+-+- line 1 -+-+-
         i = i+1;
         line = NAV{i};
@@ -472,9 +465,7 @@ while i <= length(NAV)            % loop from END OF HEADER to end of file
         af0    = lData(8);                          % sv clock bias [s]
         af1    = lData(9);                          % sv clock drift [s/s]
         af2    = lData(10);                         % sv clock drift rate [s/s^2]
-        hour   = hour + minute/60 + second/3600;    % decimal hour of clock
-        jd = cal2jd_GT(year,month,day+hour/24);        % Julian day of clock
-        [~, toc, ~] = jd2gps_GT(jd);                   % ~, seconds of GPS week
+        [~, toc] = cal2gpstime([year month day hour minute second]);
         % -+-+- line 1 -+-+-
         i = i+1;
         line = NAV{i};

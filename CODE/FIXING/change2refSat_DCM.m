@@ -62,7 +62,7 @@ if settings.INPUT.use_GPS && Epoch.refSatGPS ~= 0
         idx_rec_clk_phase = find(strcmp(Adjust.ORDER_PARAM, 'rec_clk_phase_G'));        
         % recalculate ambiguities and (covariances)
         [N, N_pred, param, param_pred, bool_zero] = recalc_param(N, N_pred, param, param_pred, ...
-            idx_now_G, isgps, idx_old_G, idx_L2, idx_L3, idx_rec_clk_phase);
+            idx_now_G, isgps, idx_old_G, idx_L2, idx_L3, idx_rec_clk_phase, n_frqs_GPS);
         [Q_x, Q_x_pred] = recalc_Q(Q_x, Q_x_pred, bool_zero, idx_now_G, isgps, ...
             var_amb, no_sats, NO_PARAM, n_frqs_GPS, idx_L2, idx_L3, idx_rec_clk_phase);
         if bool_print; fprintf('\tChange of Reference Satellite GPS: %03d                           \n', Epoch.refSatGPS); end
@@ -91,7 +91,7 @@ if settings.INPUT.use_GLO && Epoch.refSatGLO ~= 0
         idx_rec_clk_phase = find(strcmp(Adjust.ORDER_PARAM, 'rec_clk_phase_R'));
         % recalculate ambiguities and (covariances)
         [N, N_pred, param, param_pred, bool_zero] = recalc_param(N, N_pred, param, param_pred, ...
-            idx_now_R, isglo, idx_old_R, idx_L2, idx_L3, idx_rec_clk_phase);
+            idx_now_R, isglo, idx_old_R, idx_L2, idx_L3, idx_rec_clk_phase, n_frqs_GLO);
         [Q_x, Q_x_pred] = recalc_Q(Q_x, Q_x_pred, bool_zero, idx_now_R, isglo, ...
             var_amb, no_sats, NO_PARAM, n_frqs_GLO, idx_L2, idx_L3, idx_rec_clk_phase);
         if bool_print; fprintf('\tChange of Reference Satellite GLONASS: %03d                           \n', Epoch.refSatGLO); end
@@ -120,7 +120,7 @@ if settings.INPUT.use_GAL && Epoch.refSatGAL ~= 0
         idx_rec_clk_phase = find(strcmp(Adjust.ORDER_PARAM, 'rec_clk_phase_E'));
         % recalculate ambiguities and (covariances)
         [N, N_pred, param, param_pred, bool_zero] = recalc_param(N, N_pred, param, param_pred, ...
-            idx_now_E, isgal, idx_old_E, idx_L2, idx_L3, idx_rec_clk_phase);
+            idx_now_E, isgal, idx_old_E, idx_L2, idx_L3, idx_rec_clk_phase, n_frqs_GAL);
         [Q_x, Q_x_pred] = recalc_Q(Q_x, Q_x_pred, bool_zero, idx_now_E, isgal, ...
             var_amb, no_sats, NO_PARAM, n_frqs_GAL, idx_L2, idx_L3, idx_rec_clk_phase);
         if bool_print; fprintf('\tChange of Reference Satellite Galileo: %03d                           \n', Epoch.refSatGAL); end
@@ -149,7 +149,7 @@ if settings.INPUT.use_BDS && Epoch.refSatBDS ~= 0
         idx_rec_clk_phase = find(strcmp(Adjust.ORDER_PARAM, 'rec_clk_phase_C'));
         % recalculate ambiguities and (covariances)
         [N, N_pred, param, param_pred, bool_zero] = recalc_param(N, N_pred, param, param_pred, ...
-            idx_now_C, isbds, idx_old_C, idx_L2, idx_L3, idx_rec_clk_phase);
+            idx_now_C, isbds, idx_old_C, idx_L2, idx_L3, idx_rec_clk_phase, n_frqs_BDS);
         [Q_x, Q_x_pred] = recalc_Q(Q_x, Q_x_pred, bool_zero, idx_now_C, isbds, ...
             var_amb, no_sats, NO_PARAM, n_frqs_BDS, idx_L2, idx_L3, idx_rec_clk_phase);
         if bool_print; fprintf('\tChange of Reference Satellite BeiDou: %03d                           \n', Epoch.refSatBDS); end
@@ -178,7 +178,7 @@ if settings.INPUT.use_QZSS && Epoch.refSatQZS ~= 0
         idx_rec_clk_phase = find(strcmp(Adjust.ORDER_PARAM, 'rec_clk_phase_J'));
         % recalculate ambiguities and (covariances)
         [N, N_pred, param, param_pred, bool_zero] = recalc_param(N, N_pred, param, param_pred, ...
-            idx_now_J, isqzs, idx_old_J, idx_L2, idx_L3, idx_rec_clk_phase);
+            idx_now_J, isqzs, idx_old_J, idx_L2, idx_L3, idx_rec_clk_phase, n_frqs_QZS);
         [Q_x, Q_x_pred] = recalc_Q(Q_x, Q_x_pred, bool_zero, idx_now_C, isqzs, ...
             var_amb, no_sats, NO_PARAM, n_frqs_QZS, idx_L2, idx_L3, idx_rec_clk_phase);
         if bool_print; fprintf('\tChange of Reference Satellite QZSS: %03d                           \n', Epoch.refSatQZS); end
@@ -244,7 +244,7 @@ Q_x_pred(ind) = var;
 
 
 function [N, N_, param, pred_, bool_zero] = ...
-    recalc_param(N, N_, param, pred_, idx_new, gnss, idx_old, idx_L2, idx_L3, idx_clk)
+    recalc_param(N, N_, param, pred_, idx_new, gnss, idx_old, idx_L2, idx_L3, idx_clk, frqs)
 % N             estimated float ambiguites
 % N_pred        predicted estimated float ambiguities
 % idx_new       index of new reference satellite in Epoch.sats
@@ -252,6 +252,7 @@ function [N, N_, param, pred_, bool_zero] = ...
 % idx_old       index of new reference satellite in Epoch.sats
 % idx_L2, idx_L3, idx_clk
 %               index of L2 bias, L3 bias and receiver phase clock error in parameter vector
+% frqs          number of input frequencies for this GNSS
 
 
 % recalculate L2 bias to new reference satellite
@@ -259,7 +260,7 @@ param(idx_L2) = param(idx_L2) - N (idx_new, 1) + N (idx_new, 2);
 pred_(idx_L2) = pred_(idx_L2) - N_(idx_new, 1) + N_(idx_new, 2);
 
 % recalculate L3 bias to new reference satellite
-if size(N,2) > 2
+if frqs > 2
     param(idx_L3) = param(idx_L3) - N (idx_new, 1) + N (idx_new, 3);
     pred_(idx_L3) = pred_(idx_L3) - N_(idx_new, 1) + N_(idx_new, 3);
 end

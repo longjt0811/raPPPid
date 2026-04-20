@@ -36,7 +36,10 @@ for i = 1:no_headers
         lvalues = textscan(headers{i},'%*c %f %f %f %f %f %f %d %2d %f');
     end
     % convert date into gps-time [sow]
-    [~, time_epochs(i)] = cal2gpstime([lvalues{1}, lvalues{2}, lvalues{3}, lvalues{4}, lvalues{5}, lvalues{6}]);
+    emptyCells = cellfun(@isempty, lvalues);
+    if ~any(emptyCells(1:6))        % simple header check (e.g., last epoch broken)
+        [~, time_epochs(i)] = cal2gpstime([lvalues{1}, lvalues{2}, lvalues{3}, lvalues{4}, lvalues{5}, lvalues{6}]);
+    end
 end
 
 

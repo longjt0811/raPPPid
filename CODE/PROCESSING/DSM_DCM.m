@@ -1,4 +1,4 @@
-function Adjust = Designmatrix_DCM(Adjust, Epoch, model, settings)
+function [A, omc] = DSM_DCM(Adjust, Epoch, model, settings)
 % Create Designmatrix A and observed minus computed vector omc for the
 % decoupled clock model
 % 
@@ -8,7 +8,8 @@ function Adjust = Designmatrix_DCM(Adjust, Epoch, model, settings)
 % 	model       struct, observation model
 %   settings    struct, settings from GUI
 % OUTPUT: 
-%   Adjust      updated with A and omc
+%   A           Designmatrix
+%   omc         observed-minus-computed vector
 %
 % Revision:
 %
@@ -88,7 +89,8 @@ rx_clk_p(isQZS,10) = true;
 
 f2nd = [zeros(n,1); ones(n2,1);  zeros(n3,1)];
 f3rd = [zeros(n,1); zeros(n2,1); ones(n3,1)];
-O_n5 = zeros(s_f,5); O_nn = zeros(s_f,s_f);
+O_n5 = zeros(s_f,5); O_nn = zeros(s_f,s_f); O_n1 = zeros(s_f,1);
+
 
 % Receiver IFB
 IFB     = [isGPS.*f3rd, isGLO.*f3rd, isGAL.*f3rd, isBDS.*f3rd, isQZS.*f3rd];
@@ -125,16 +127,16 @@ if num_freq >= 3        % 3rd frequency is processed
 end
 
 % --- Build A-Matrix without ionosphere submatrix
-A(code_row,:)  = [xyz, v_xyz, T, rx_clk_c, IFB,  O_n5,    O_n5,    O_nn ] .*  ~exclude;
-A(phase_row,:) = [xyz, v_xyz, T, rx_clk_p, O_n5, bias_L2, bias_L3, amb_p] .*  ~exclude .* usePhase;
+A(code_row,:)  = [xyz, v_xyz, T, rx_clk_c, IFB,  O_n5,    O_n5,    O_n1, O_nn ] .*  ~exclude;
+A(phase_row,:) = [xyz, v_xyz, T, rx_clk_p, O_n5, bias_L2, bias_L3, O_n1, amb_p] .*  ~exclude .* usePhase;
 
 % create ionospheric delay estimation submatrix
 dR_diono_code_f1  =  Epoch.f1.^2 ./ Epoch.f1.^2;
 A_iono_1 = diag(dR_diono_code_f1);
 A_iono_2 = [];
 if num_freq >= 2        % 2nd frequency is processed
-dR_diono_code_f2  =  Epoch.f1.^2 ./ Epoch.f2.^2;
-A_iono_2 = diag(dR_diono_code_f2);
+    dR_diono_code_f2  =  Epoch.f1.^2 ./ Epoch.f2.^2;
+    A_iono_2 = diag(dR_diono_code_f2);
 end
 A_iono_3 = [];
 if num_freq >= 3        % 3rd frequency is processed
@@ -153,6 +155,3 @@ A_iono(phase_row,:) = -A_iono(phase_row,:); 	% change sign for phase observation
 A = [A, A_iono];
 
 
-%% save in Adjust
-Adjust.A = A;
-Adjust.omc = omc;

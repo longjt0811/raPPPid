@@ -58,6 +58,15 @@ elseif sys(end) == 'J'    	% QZSS
     col = DEF.COLOR_J;    
 end
     
+% prepare data for plotting
+HMW_diff_ = full(HMW_diff);
+HMW_diff_(HMW_diff_ == 0) = NaN;
+
+% check if any data at all (e.g., frequency not processed)
+if all(all( isnan(HMW_diff_(:, loop)) ))
+    return
+end
+
 % plot the satellites
 fig1 = figure('Name', ['Cycle Slip Detection, ' sys(1:end-2) ', ' char2gnss(sys(end))], 'units','normalized', 'outerposition',[0 0 1 1], 'NumberTitle','off');
 ii = 1;         % counter of subplot number
@@ -69,10 +78,9 @@ set(dcm, 'updatefcn', @vis_customdatatip_CycleSlip)
 
 for i = loop
     % Plotting
-    data = full(HMW_diff(:,i));
+    data = HMW_diff_(:,i);
     HMW_var = full(var(:,i));
     threshold = fac * sqrt(HMW_var);
-    data(data == 0) = NaN;
 
     if any(~isnan(data))
         if ii == 17

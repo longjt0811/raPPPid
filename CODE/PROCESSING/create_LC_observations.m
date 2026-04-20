@@ -29,16 +29,23 @@ if strcmpi(settings.IONO.model,'2-Frequency-IF-LCs')
     k2 = f2.^2 ./ (f1.^2-f2.^2);
     k1 = f1.^2 ./ (f1.^2-f2.^2);
     % build IF-LC between 1st and 2nd processed frequency
-    Epoch.code(:,1)  = k1 .* Epoch.C1 - k2 .* Epoch.C2;
-    Epoch.phase(:,1) = k1 .* Epoch.L1 - k2 .* Epoch.L2;
+    Epoch.code(:,1)    = k1 .* Epoch.C1 - k2 .* Epoch.C2;
+    Epoch.phase(:,1)   = k1 .* Epoch.L1 - k2 .* Epoch.L2;
+    if ~isempty(Epoch.D1) && ~isempty(Epoch.D2)
+        Epoch.doppler(:,1) = k1 .* Epoch.D1 - k2 .* Epoch.D2;
+    end
     % build IF-LC between 2nd and 3rd processed frequency
     if settings.INPUT.proc_freqs == 2         % 2x 2-Fr.-IF-LC
         % factors of Ionosphere-Free-LC between 2nd and 3rd processed frequency
         k4 = f3.^2 ./ (f2.^2-f3.^2);
         k3 = f2.^2 ./ (f2.^2-f3.^2);
-        Epoch.code(:,2)  = k3 .* Epoch.C2 - k4 .* Epoch.C3;
-        Epoch.phase(:,2) = k3 .* Epoch.L2 - k4 .* Epoch.L3;
+        Epoch.code(:,2)    = k3 .* Epoch.C2 - k4 .* Epoch.C3;
+        Epoch.phase(:,2)   = k3 .* Epoch.L2 - k4 .* Epoch.L3;
+        if ~isempty(Epoch.D2) && ~isempty(Epoch.D3)
+            Epoch.doppler(:,2) = k3 .* Epoch.D2 - k4 .* Epoch.D3;
+        end
     end
+
 elseif strcmpi(settings.IONO.model,'3-Frequency-IF-LC')
     % from "A Comparison of Three GPS Triple-Frequency Precise Point
     % Positioning Models" [14]
@@ -47,29 +54,45 @@ elseif strcmpi(settings.IONO.model,'3-Frequency-IF-LC')
     e1 = (y2.^2 +y3.^2  -y2-y3) ./ (2.*(y2.^2 +y3.^2 -y2.*y3 -y2-y3+1));
     e2 = (y3.^2 -y2.*y3 -y2 +1) ./ (2.*(y2.^2 +y3.^2 -y2.*y3 -y2-y3+1));
     e3 = (y2.^2 -y2.*y3 -y3 +1) ./ (2.*(y2.^2 +y3.^2 -y2.*y3 -y2-y3+1));
-    Epoch.code  = e1.*Epoch.C1 + e2.*Epoch.C2 + e3.*Epoch.C3;
-    Epoch.phase = e1.*Epoch.L1 + e2.*Epoch.L2 + e3.*Epoch.L3;
+    Epoch.code    = e1.*Epoch.C1 + e2.*Epoch.C2 + e3.*Epoch.C3;
+    Epoch.phase   = e1.*Epoch.L1 + e2.*Epoch.L2 + e3.*Epoch.L3;
+    if ~isempty(Epoch.D1) && ~isempty(Epoch.D2) && ~isempty(Epoch.D3)
+        Epoch.doppler = e1.*Epoch.D1 + e2.*Epoch.D2 + e3.*Epoch.D3;
+    end
+
 elseif strcmpi(settings.IONO.model,'GRAPHIC')
     % GRAPHIC creates a mixed code/phase LC, saved 2x (in .code and .phase)
-    Epoch.code(:,1)  = (Epoch.C1 + Epoch.L1)/2;
-    Epoch.phase(:,1) = (Epoch.C1 + Epoch.L1)/2;
+    Epoch.code(:,1)    = (Epoch.C1 + Epoch.L1)/2;
+    Epoch.phase(:,1)   = (Epoch.C1 + Epoch.L1)/2;
+    if ~isempty(Epoch.D1)
+        Epoch.doppler(:,1) = Epoch.D1;
+    end
     
 else    % raw observation is processed
-    Epoch.code(:,1)  = Epoch.C1;
-    Epoch.phase(:,1) = Epoch.L1;
+    Epoch.code(:,1)    = Epoch.C1;
+    Epoch.phase(:,1)   = Epoch.L1;
+    if ~isempty(Epoch.D1)
+        Epoch.doppler(:,1) = Epoch.D1;
+    end
     if settings.INPUT.proc_freqs > 1
-        Epoch.code(:,2)  = Epoch.C2;
-        Epoch.phase(:,2) = Epoch.L2;
+        Epoch.code(:,2)    = Epoch.C2;
+        Epoch.phase(:,2)   = Epoch.L2;
+        if ~isempty(Epoch.D2)
+            Epoch.doppler(:,2) = Epoch.D2;
+        end
         if settings.INPUT.proc_freqs == 3
-            Epoch.code(:,3)  = Epoch.C3;
-            Epoch.phase(:,3) = Epoch.L3;
+            Epoch.code(:,3)    = Epoch.C3;
+            Epoch.phase(:,3)   = Epoch.L3;
+            if ~isempty(Epoch.D3)
+                Epoch.doppler(:,3) = Epoch.D3;
+            end
         end
     end
 end
 
 
 %% --- Build Multipath LC ---
-if strcmp(settings.PROC.method, 'Code + Phase') && settings.INPUT.num_freqs >= 2
+if contains(settings.PROC.method, '+ Phase') && settings.INPUT.num_freqs >= 2
     % 2-Frequency Multipath LC
     % following [02] or [04]: (6.1.50) and (6.1.51)
     a = (f1./f2).^2;        % constant alpha for LC-coefficients

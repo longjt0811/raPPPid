@@ -1,4 +1,4 @@
-function [Epoch, Adjust] = adjPrep_DCM(settings, Adjust, Epoch, prns_old, obs)
+function [Epoch, Adjust] = adjPrep_DCM(settings, Adjust, Epoch, prns_old, obs, input)
 % This function is called in ZD_processing before the estimation of the
 % float solution with calc_float_solution.m and creates the necessary
 % variables and prediction for the parameter estimation for the
@@ -12,6 +12,7 @@ function [Epoch, Adjust] = adjPrep_DCM(settings, Adjust, Epoch, prns_old, obs)
 %   Epoch           struct, epoch-specific data for current epoch
 %   prns_old        satellites of previous epoch
 %   obs             struct, observation-specific data
+%   input           struct, input data
 % OUTPUT:
 %   Epoch           updated
 %   Adjust          updated
@@ -27,11 +28,15 @@ function [Epoch, Adjust] = adjPrep_DCM(settings, Adjust, Epoch, prns_old, obs)
 %% Preparation
 
 % handle first epoch or epochs with invalid float solution (e.g., after reset)
-if ~Adjust.float
-    [Epoch, Adjust] = adjPrep_DCM_init(settings, Adjust, Epoch, obs);
+if ~Adjust.float || strcmp(settings.ADJ.filter.type, 'No Filter')
+    [Epoch, Adjust] = adjPrep_DCM_init(settings, Adjust, Epoch, obs, input);
     return      % remaining code of this function is called in all other epochs
 end
 
+% somehow this is necessary
+if settings.KINE.satellite.bool && Epoch.q == settings.PROC.q_range(2) && ~Epoch.bool_2nd 
+    Adjust.param(4:6) = (Adjust.param(1:3) - Adjust.approx_position) / obs.interval;
+end
 
 %% Get variables
 % extract needed settings from structs
@@ -40,7 +45,7 @@ FILTER   	= settings.ADJ.filter;      % filter settings from GUI
 ZWD_ON  	= Adjust.est_ZWD;           % boolean, ZWD estimated in current epoch?
 
 % check for processing settings
-bool_code_phase = strcmpi(settings.PROC.method,'Code + Phase');   % true, if code+phase processing
+bool_code_phase = contains(settings.PROC.method,'+ Phase');   % true, if code+phase processing
 bool_filter = ~strcmp(FILTER.type, 'No Filter');    % true if filter is enabled
 
 % Get and create some variables
@@ -114,7 +119,8 @@ end
 %% Prediction
 % of parameter vector & covariance matrix with Transition Matrix and Noise Matrix
 if bool_filter
-    
+    dt = abs(Epoch.gps_time - Epoch.old.gps_time);      % absolute time difference between last and current epoch
+
     % ----- Noise Matrix -----
     Noise = Adjust.Noise_0;
     % add noise of float ambiguities
@@ -123,14 +129,21 @@ if bool_filter
     Noise(iono_idx,iono_idx) = iono_eye * FILTER.Q_iono;
     % add ZWD noise (if ZWD estimation is not started in first epoch)
     if ZWD_ON
-        Noise(7,7) = FILTER.var_zwd;
+        Noise(7,7) = FILTER.Q_zwd;
     end
-    Noise = Noise * obs.interval/3600; 	% scale process noise from 1 hour to observation interval
-    Adjust.Noise = Noise; 	% save Noise Matrix of current epoch
+    Noise = Noise * dt/3600; 	% scale process noise from 1 hour to observation interval
+    Adjust.Noise = Noise; 	    % save Noise Matrix of current epoch
     
     
     % ----- Transition Matrix -----
     Transition = Adjust.Transition_0;
+    % add dynamic model / prediction of coordinates
+    if FILTER.dynmodel_coord == 2
+        % linear model using velocity for predicting the next position
+        Transition(1,4) = dt;
+        Transition(2,5) = dt;
+        Transition(3,6) = dt;
+    end
     % add dynamic model of float ambiguities
     Transition(N_idx,N_idx) = N_eye*FILTER.dynmodel_amb;
     % add dynamic model of ionospheric delays
@@ -149,7 +162,11 @@ if bool_filter
     
     % ----- predict parameter vector -----
     Adjust.param_pred = Transition * Adjust.param;
-    
+    if settings.KINE.satellite.bool
+        % use dynamic prediction for satellite PPP
+        [Adjust.param_pred(1:6), Transition] = DynamicPredictionPosVel(...
+            Adjust.param, Epoch, obs, settings, Transition, Adjust.float);
+    end
     
     % ----- predict covariance matrix of parameters -----
     % cf. [00]: p.31, (2.39) or [01]: p.247, (7.122)

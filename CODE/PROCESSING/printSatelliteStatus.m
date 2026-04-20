@@ -51,7 +51,7 @@ for i = 1:n
             case 8
                 str_add = 'SSR digit too low';
             case 9
-                str_add = '';
+                str_add = 'WindUp issue';
             case 10
                 str_add = 'not fixable';
             case 11

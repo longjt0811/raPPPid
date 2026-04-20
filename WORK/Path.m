@@ -32,6 +32,9 @@ classdef Path
         
         % Path to folder of NeQuickG.exe
         NeQuick_G = '../CODE/ATMOSPHERE/NeQuick_G/';
+
+        % Path to the folder of curl
+        CURL = '../CODE/OBSERVATIONS/ObservationDownload/cURL/';
         
     end
     

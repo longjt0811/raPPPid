@@ -1,7 +1,7 @@
 function valid_settings = checkProcessingSettings(settings, prebatch_check)
 % This function checks if the settings from the GUI are valid for the 
 % processing. If something is wrong it throws an error message and the
-% processing will not be started
+% processing will not be started.
 % 
 % INPUT:
 %   settings        struct, settings for processing from GUI
@@ -49,7 +49,7 @@ proc_frqs_qzs  = settings.INPUT.qzss_freq;
 if ~prebatch_check
     % No observation file selected
     if isempty(settings.INPUT.file_obs) && ~prebatch_check
-        errordlg('Single-File-Processing: No observation file defined!', 'Error');
+        errordlg({'No observation file defined!', 'Please select a RINEX observation file (File > Input)', ' or switch to Batch-Processing.'}, 'Error');
         valid_settings = false;     return;
     end
     % extract some information from header of observation file
@@ -82,6 +82,7 @@ prec_prod_CODE_MGEX = strcmpi(settings.ORBCLK.prec_prod,'CODE') && settings.ORBC
 prec_prod_CODE = strcmpi(settings.ORBCLK.prec_prod,'CODE') && ~settings.ORBCLK.MGEX;
 DecoupledClockModel = strcmp(settings.IONO.model, 'Estimate, decoupled clock');
 IF_LC = strcmp(settings.IONO.model,'2-Frequency-IF-LCs');
+is_kinematic = settings.KINE.bool_kinematic;
 
 
 %% Check different number of processed frequencies (only for IF LC PPP models)
@@ -263,7 +264,7 @@ end
 % ESA precise products, IGS precise products are GPS only
 % CODE DCBs are GPS+GLO only
 if (GAL_on || BDS_on) && ~prebatch_check
-    if settings.ORBCLK.bool_precise && strcmpi(settings.ORBCLK.prec_prod,'IGS')
+    if settings.ORBCLK.bool_precise && strcmpi(settings.ORBCLK.prec_prod,'IGS') && ~settings.ORBCLK.MGEX
         errordlg('IGS precise products are GPS only!', windowname);
         valid_settings = false;     return;
     end
@@ -416,7 +417,7 @@ end
 % check if processing name is invalid
 invalid_chars = '?!&%';
 for i = 1:numel(invalid_chars)
-    if contains(settings.PROC.name, invalid_chars(i))
+    if contains(settings.PROC.name_GUI, invalid_chars(i))
         errordlg({'Subdirectory/Processing-Name is invalid:', ['Please remove suspicious characters like ' invalid_chars]}, windowname);
         valid_settings = false; return
     end
@@ -455,7 +456,7 @@ if strcmp(settings.IONO.model, '2-Frequency-IF-LCs') && num_freq == 3 && ~settin
 end
 
 % WL Fixing needs at least two epochs
-if ~prebatch_check && ~DecoupledClockModel && settings.AMBFIX.bool_AMBFIX && ~isempty(rheader.interval) && (settings.AMBFIX.start_WL_sec/rheader.interval < 2)
+if ~prebatch_check && ~DecoupledClockModel && settings.AMBFIX.bool_AMBFIX && ~isempty(rheader.interval) && (ceil(settings.AMBFIX.start_WL_sec/rheader.interval) < 1)
     errordlg({'Check start of Fixing!', 'For WL-Fixing at least 2 epochs are needed.'}, windowname);
     valid_settings = false; return
 end
@@ -811,18 +812,54 @@ if settings.INPUT.bool_realtime && ~strcmp(settings.ADJ.filter.direction, 'Forwa
 end
 
 % Satellite PPP is (currently) implemented for specific PPP models only
-if settings.ADJ.satellite.bool && contains(settings.IONO.model, 'Estimate')
+if settings.KINE.satellite.bool && contains(settings.IONO.model, 'Estimate') && ~contains(settings.IONO.model, 'decoupled')
     errordlg({'Satellite PPP is not implemented for the choosen PPP model.', 'Please select another PPP model'}, windowname);
     valid_settings = false; return
 end
 
-if settings.ADJ.satellite.bool && settings.OTHER.CS.TimeDifference && ...
+% Satellite PPP requires degree 4 for cycle-slip detection with time difference
+if settings.KINE.satellite.bool && settings.OTHER.CS.TimeDifference && ...
         settings.OTHER.CS.TD_degree ~= 4
     errordlg({'Satellite PPP with time difference for cycle-slip detection:', 'Please set degree of time difference to 4!'}, windowname);
     valid_settings = false; return
 end
 
+% Satellite PPP is kinematic processing
+if settings.KINE.satellite.bool && ~is_kinematic
+    errordlg({'Satellite PPP is enabled.', 'Please activate "kinematic"','on panel "Input-File"!'}, windowname);
+    valid_settings = false; return
+end
 
+% system noise of coordinates should be zero only for static processing
+if is_kinematic && settings.ADJ.filter.Q_coord == 0
+    errordlg({'Kinematic processing activated,', 'but system noise of coordinates is zero.', '', 'Please define a system noise for', 'the coordinates (Estimation>Adjustment)!'}, windowname);
+    valid_settings = false; return
+end
+
+% system noise should not be zero for velocity estimation
+if is_kinematic && settings.ADJ.filter.Q_velocity == 0
+    errordlg({'Kinematic processing activated,', 'but system noise of velocity is zero.', '', 'Please define a system noise for', 'the velocity (Estimation>Adjustment)!'}, windowname);
+    valid_settings = false; return
+end
+
+% Doppler observation should be used for kinematic processing only (to
+% estimate velocity)
+if ~is_kinematic && contains(settings.PROC.method, '+ Doppler') 
+    errordlg({'Kinematic processing disactivated,', 'but Doppler observations selected.', '', 'Please activate "kinematic"on panel "Input-File"!'}, windowname);
+    valid_settings = false; return
+end
+
+% Decoupled Clock Model requires phase observations (otherwise senseless)
+if DecoupledClockModel && ~contains(settings.PROC.method,'+ Phase')
+    errordlg({'Decoupled Clock Model requires phase observations!', '(Run -> Processing Options -> Processing method)'}, windowname);
+    valid_settings = false; return
+end 
+
+% Linear model for coordinates requires Doppler and velocity estimation
+if settings.ADJ.filter.dynmodel_coord == 2 && (~is_kinematic || ~contains(settings.PROC.method, '+ Doppler'))
+    errordlg({'Dynamic Model: "Linear" for coordinates', 'requires velocity estimation with Doppler!'}, windowname);
+    valid_settings = false; return
+end 
 
 
 % ||| to be continued
@@ -902,7 +939,7 @@ if settings.AMBFIX.bool_AMBFIX
     end
     
     % PPP-AR and phase is not processed
-    if ~strcmp(settings.PROC.method, 'Code + Phase')
+    if ~contains(settings.PROC.method, 'Code + Phase')
         errordlg('PPP-AR without Phase Observations is not possible!', windowname);
         valid_settings = false; return
     end
@@ -1039,8 +1076,8 @@ end
 %% Message Boxes
 
 % Print out information if no cycle-slip detection method is enabled
-if ~settings.OTHER.CS.TimeDifference && ~settings.OTHER.CS.l1c1 && ~settings.OTHER.CS.DF && ~settings.OTHER.CS.Doppler && strcmp(settings.PROC.method, 'Code + Phase')
-    msgbox('Be careful: All cycle-slip detection methods are disabled!', 'Cycle-Slip-Detection', 'help')
+if ~settings.OTHER.CS.HMW && ~settings.OTHER.CS.TimeDifference && ~settings.OTHER.CS.l1c1 && ~settings.OTHER.CS.DF && ~settings.OTHER.CS.Doppler && contains(settings.PROC.method, '+ Phase')
+    msgbox('Be careful: All Cycle-Slip Detection methods are disabled!', 'Cycle-Slip Detection', 'help')
 end
 
 % Intervall is (maybe?) too long for Cycle-Slip Detection with Doppler
@@ -1121,6 +1158,9 @@ end
 if ~prebatch_check && ~strcmpi(rheader.time_system, 'GPS') && ~isempty(strtrim(rheader.time_system))
     msgbox({'RINEX File is not in GPS Time: Processing should work.', 'BUT inconsistencies in the output might occur!'}, windowname);
 end
+
+
+
 
 
 %%

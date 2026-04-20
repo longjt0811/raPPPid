@@ -15,6 +15,7 @@ function plotResiduals(storeData, settings, epochs, reset_h, hours, label_x, sat
 %
 % Revision:
 %   2023/12/21, MFWG: adding QZSS to plots
+%   2026/02/26, MFWG: adding Doppler residuals to plot
 % 
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
@@ -23,23 +24,28 @@ function plotResiduals(storeData, settings, epochs, reset_h, hours, label_x, sat
 %% Preparations
 n = settings.INPUT.proc_freqs;      % number of processed frequencies
 
-bool_plot_phase = strcmpi(settings.PROC.method,'Code + Phase') && ...
+bool_phase = contains(settings.PROC.method,'+ Phase') && ...
     ~strcmp(settings.IONO.model, 'GRAPHIC');    % plot phase residuals?
-
+bool_doppler = contains(settings.PROC.method,'+ Doppler');
 
 % get residuals depending if float or fixed plot
-phase_residuals = [];
+phase_residuals = []; doppler_residuals = [];
 if settings.PLOT.float
     solution_string = 'float';
     cutoff = settings.PROC.elev_mask;
     code_residuals  = full(storeData.residuals_code_1);
     if n > 1; code_residuals(:,:,2) = full(storeData.residuals_code_2); end
     if n > 2; code_residuals(:,:,3) = full(storeData.residuals_code_3); end
-    if bool_plot_phase
+    if bool_phase
         phase_residuals = full(storeData.residuals_phase_1);
         if n > 1; phase_residuals(:,:,2) = full(storeData.residuals_phase_2); end
         if n > 2; phase_residuals(:,:,3) = full(storeData.residuals_phase_3); end
     end
+    if bool_doppler
+        doppler_residuals = full(storeData.residuals_doppler_1);
+        if n > 1; doppler_residuals(:,:,2) = full(storeData.residuals_doppler_2); end
+        if n > 2; doppler_residuals(:,:,3) = full(storeData.residuals_doppler_3); end
+    end    
     
 elseif settings.PLOT.fixed
     solution_string = 'fixed';
@@ -63,6 +69,7 @@ obs_prns = idx(sum(obs_bool(:,idx),1) > 0);	% prns of observed satellites
 
 % initialize
 Res_phase_GPS = []; Res_phase_GLO = []; Res_phase_GAL = []; Res_phase_BDS = []; Res_phase_QZSS = [];
+Res_doppler_GPS = []; Res_doppler_GLO = []; Res_doppler_GAL = []; Res_doppler_BDS = []; Res_doppler_QZSS = [];
 gps_prns = []; glo_prns = []; gal_prns = []; bds_prns = []; qzss_prns = [];
 
 % get elevation
@@ -77,13 +84,14 @@ if n > 2; SNR_3 =  full(satellites.SNR_3); end
 % phase observation not used
 code_residuals(code_residuals==0)   = NaN;
 phase_residuals(phase_residuals==0) = NaN;
+doppler_residuals(doppler_residuals==0) = NaN;
 
 
 %% create plots Residuals and Residuals over Elevation
 % % All GNSS
 % % Extract data and replaces zeros with NaN
 % Res_code = code_residuals;
-% if strcmpi(settings.PROC.method,'Code + Phase')
+% if contains(settings.PROC.method,'+ Phase')
 %     Res_phase = phase_residuals;
 %     Res_phase(Res_phase==0) = NaN;
 % end
@@ -105,62 +113,82 @@ phase_residuals(phase_residuals==0) = NaN;
 if settings.INPUT.use_GPS
     % Extract data and replaces zeros with NaN
     Res_code_GPS = code_residuals(:, 1:DEF.SATS_GPS, :);
-    if bool_plot_phase
+    if bool_phase
         Res_phase_GPS = phase_residuals(:, 1:DEF.SATS_GPS, :);
         Res_phase_GPS(Res_phase_GPS==0) = NaN;
+    end
+    if bool_doppler
+        Res_doppler_GPS = doppler_residuals(:, 1:DEF.SATS_GPS, :);
+        Res_doppler_GPS(Res_doppler_GPS==0) = NaN;
     end
     gps_prns = obs_prns(obs_prns<100);
     % Plot
     txtcell = {'GPS', 'G', solution_string};
-    vis_plotResiduals(epochs, reset_h, hours, label_x, Res_code_GPS, Res_phase_GPS, gps_prns, txtcell, elev(:,1:DEF.SATS_GPS), cutoff, rgb);
+    vis_plotResiduals(epochs, reset_h, hours, label_x, Res_code_GPS, Res_phase_GPS, Res_doppler_GPS, gps_prns, txtcell, elev(:,1:DEF.SATS_GPS), cutoff, rgb);
 end
 
 % GLONASS
 if settings.INPUT.use_GLO
     Res_code_GLO = code_residuals(:, 101:100+DEF.SATS_GLO, :);
-    if bool_plot_phase
+    if bool_phase
         Res_phase_GLO = phase_residuals(:, 101:100+DEF.SATS_GLO, :);
     end
+    if bool_doppler
+        Res_doppler_GLO = doppler_residuals(:, 1:DEF.SATS_GLO, :);
+        Res_doppler_GLO(Res_doppler_GLO==0) = NaN;
+    end    
     glo_prns = obs_prns(obs_prns>100 & obs_prns<200);
     % Plot
     txtcell = {'GLONASS', 'R', solution_string};
-    vis_plotResiduals(epochs, reset_h, hours, label_x, Res_code_GLO, Res_phase_GLO, glo_prns-100, txtcell, elev(:,101:(100+DEF.SATS_GLO)), cutoff, rgb);
+    vis_plotResiduals(epochs, reset_h, hours, label_x, Res_code_GLO, Res_phase_GLO, Res_doppler_GLO, glo_prns-100, txtcell, elev(:,101:(100+DEF.SATS_GLO)), cutoff, rgb);
 end
 
 % Galileo
 if settings.INPUT.use_GAL
     Res_code_GAL = code_residuals(:, 201:200+DEF.SATS_GAL, :);
-    if bool_plot_phase
+    if bool_phase
         Res_phase_GAL = phase_residuals(:, 201:200+DEF.SATS_GAL, :);
     end
+    if bool_doppler
+        Res_doppler_GAL = doppler_residuals(:, 1:DEF.SATS_GAL, :);
+        Res_doppler_GAL(Res_doppler_GAL==0) = NaN;
+    end    
     gal_prns = obs_prns(obs_prns>200 & obs_prns<300);
     % Plot
     txtcell = {'Galileo', 'E', solution_string};
-    vis_plotResiduals(epochs, reset_h, hours, label_x, Res_code_GAL, Res_phase_GAL, gal_prns-200, txtcell, elev(:,201:(200+DEF.SATS_GAL)), cutoff, rgb);
+    vis_plotResiduals(epochs, reset_h, hours, label_x, Res_code_GAL, Res_phase_GAL, Res_doppler_GAL, gal_prns-200, txtcell, elev(:,201:(200+DEF.SATS_GAL)), cutoff, rgb);
 end
 
 % BeiDou
 if settings.INPUT.use_BDS
     Res_code_BDS = code_residuals(:, 301:399, :);
-    if bool_plot_phase
+    if bool_phase
         Res_phase_BDS = phase_residuals(:, 301:399, :);
+    end
+    if bool_doppler
+        Res_doppler_BDS = doppler_residuals(:, 1:DEF.SATS_BDS, :);
+        Res_doppler_BDS(Res_doppler_BDS==0) = NaN;
     end
     bds_prns = obs_prns(obs_prns>300 & obs_prns<400);
     % Plot
     txtcell = {'BeiDou', 'C', solution_string};
-    vis_plotResiduals(epochs, reset_h, hours, label_x, Res_code_BDS, Res_phase_BDS, bds_prns-300, txtcell, elev(:,301:399), cutoff, rgb);
+    vis_plotResiduals(epochs, reset_h, hours, label_x, Res_code_BDS, Res_phase_BDS, Res_doppler_BDS, bds_prns-300, txtcell, elev(:,301:399), cutoff, rgb);
 end
 
 % QZSS
 if settings.INPUT.use_QZSS
     Res_code_QZSS = code_residuals(:, 401:410, :);
-    if bool_plot_phase
+    if bool_phase
         Res_phase_QZSS = phase_residuals(:, 401:410, :);
     end
+    if bool_doppler
+        Res_doppler_QZSS = doppler_residuals(:, 1:DEF.SATS_QZSS, :);
+        Res_doppler_QZSS(Res_doppler_QZSS==0) = NaN;
+    end    
     qzss_prns = obs_prns(obs_prns>400 & obs_prns<500);
     % Plot
     txtcell = {'QZSS', 'J', solution_string};
-    vis_plotResiduals(epochs, reset_h, hours, label_x, Res_code_QZSS, Res_phase_QZSS, qzss_prns-400, txtcell, elev(:,401:410), cutoff, rgb);
+    vis_plotResiduals(epochs, reset_h, hours, label_x, Res_code_QZSS, Res_phase_QZSS, Res_doppler_QZSS, qzss_prns-400, txtcell, elev(:,401:410), cutoff, rgb);
 end
 
 %% create histogram of residuals
@@ -169,8 +197,8 @@ if settings.INPUT.use_GPS || settings.INPUT.use_GLO || settings.INPUT.use_GAL ||
 %     over 60° elevation)
 %     code_residuals(elev < 60) = NaN;
 %     phase_residuals(elev < 60) = NaN;
-    vis_plotResidualsHistogram(code_residuals, phase_residuals, solution_string, ...
-        gps_prns, glo_prns, gal_prns, bds_prns, qzss_prns, bool_plot_phase)
+    vis_plotResidualsHistogram(code_residuals, phase_residuals, doppler_residuals, solution_string, ...
+        gps_prns, glo_prns, gal_prns, bds_prns, qzss_prns, bool_phase, bool_doppler)
 end
 
 

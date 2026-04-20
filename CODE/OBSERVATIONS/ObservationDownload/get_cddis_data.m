@@ -23,8 +23,8 @@ function filestatus = get_cddis_data(host, folders, files, targets, bool_print)
 
 n = numel(files);          % number of files to download
 filestatus = ones(n,1);    % initalize with: download successful 
-netrcfile = '../CODE/OBSERVATIONS/ObservationDownload/cURL/.netrc';
-pathCURL  = '../CODE/OBSERVATIONS/ObservationDownload/cURL/curl.exe';
+netrcfile = [Path.CURL '.netrc'];
+pathCURL  = [Path.CURL 'curl.exe'];
 cookie    = '../CODE/OBSERVATIONS/ObservationDownload/cookie.txt';
 
 % check if .netrc file has login credentials
@@ -56,17 +56,28 @@ for i = 1:n
     if isfile([target file])
         filestatus(i) = 2;      % archive already existing
         continue
-    elseif isfile([target decompr])
+    elseif isfile([target decompr]) || isfile([target decompr '.mat'])
         filestatus(i) = 3;      % already existing and decompressed
         continue
     end
     
-    % try download
+    % download
     try
+        % create download url
         url = [host folder{1} '/' file];
-        command = ['"' pathCURL '" -s -c "' cookie '" -L --netrc-file "' netrcfile '" "' url '" -o "' target '/' file '"'];
-        system(command);
-        
+
+        % try to download with Windows curl installation
+        if ~exist([target '/' file],'file')
+            command = ['curl -s -c "' cookie '" -L --netrc-file "' netrcfile '" "' url '" -o "' target '/' file '"'];
+            system(command);
+        end
+
+        % try to download with curl.exe located in raPPPid folder structure
+        if ~exist([target '/' file],'file')
+            command = ['"' pathCURL '" -s -c "' cookie '" -L --netrc-file "' netrcfile '" "' url '" -o "' target '/' file '"'];
+            system(command);
+        end
+
         % check if REALLY downloaded
         if ~exist([target '/' file],'file')
             filestatus(i) = 0;

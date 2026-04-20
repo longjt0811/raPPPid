@@ -1,6 +1,8 @@
 function [BIAS] = read_SinexBias(BIAS, path, glo_channels)
 % function to read Bias-Sinex-File into raPPPid intern format
-% format details: http://ftp.aiub.unibe.ch/bcwg/format/draft/sinex_bias_100.pdf
+% format details: 
+% http://ftp.aiub.unibe.ch/bcwg/format/draft/sinex_bias_100.pdf
+% http://ftp.aiub.unibe.ch/bcwg/format/sinex_bias_100.pdf
 %
 % INPUT: 
 %   BIAS            struct to store data
@@ -248,7 +250,9 @@ else                                        % save new bias
     BiaStruct.ende(end+1)          = sow_ende;
     BiaStruct.start_gpsweek(end+1) = gpsweek_start;
     BiaStruct.ende_gpsweek(end+1)  = gpsweek_ende;
-    % slope is ignored here
+    if ~isempty(slope)
+        BiaStruct.slope(end+1)         = slope;
+    end
 end
 end
 

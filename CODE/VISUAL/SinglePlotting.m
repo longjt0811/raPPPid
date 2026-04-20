@@ -31,11 +31,12 @@ if ~any(storeData.float)
     return          % no float solution in any epoch
 end  
 
-% create storeData.time if not existing (Aug 25, remove in future version)
+% create storeData.time if not existing (Aug 2025, remove in future version)
 if ~isfield(storeData, 'time')
     storeData.time = gpstime2cal(obs.startGPSWeek, storeData.gpstime);
 end
 
+bool_phase = contains(settings.PROC.method,'+ Phase');     % phase observation processed?
 
 
 % correct time variables for receiver clock error, which was estimated
@@ -104,7 +105,7 @@ else        % reference trajectory
     bool_true_pos = true;
     [pos_true_geo, North_true, East_true] = ...
         LoadReferenceTrajectory(settings.PLOT.pos_true, obs.leap_sec, storeData.gpstime, storeData.time);
-    if settings.PLOT.coordxyz || settings.PLOT.XYZ
+    if settings.PLOT.coordxyz || settings.PLOT.XYZ || settings.PLOT.velocity
         [x, y, z] = ell2xyz_GT(pos_true_geo.lat, pos_true_geo.lon, pos_true_geo.h, Const.WGS84_A, Const.WGS84_E_SQUARE);
         xyz_true = [x, y, z]'; 
     end
@@ -112,7 +113,6 @@ end
 
 % time-related stuff
 sow = storeData.gpstime;        % time of epochs in seconds of week
-sow = round(10*sow)/10;         % needed if observation in RINEX are not to full second
 secnds = sow - sow(1);
 hours = secnds / 3600;
 interval = storeData.obs_interval;
@@ -120,7 +120,7 @@ interval = storeData.obs_interval;
 % time of resets in seconds of week
 reset_sow = storeData.gpstime(storeData.float_reset_epochs);
 % time of resets in seconds since beginning of processing
-reset_sec = round(reset_sow - sow(1));
+reset_sec = reset_sow - sow(1);
 reset_h = reset_sec / 3600;
 
 % create string for title of plot with station name, startdate (yyyy, doy),
@@ -176,14 +176,20 @@ if STOP_CALC; return; end
 
 % -+-+-+-+- Figure: Map Plot -+-+-+-+-
 if settings.PLOT.map
-    if true
-        velocityPlot(pos_cart, secnds, label_x_sec)
+    try
+        MapMoviePlot(pos_geo(:,1)*180/pi, pos_geo(:,2)*180/pi, bool_true_pos, pos_true_geo.lat*180/pi, pos_true_geo.lon*180/pi, station_date, ff)
+    catch
+        vis_MaPlot(pos_geo(:,1)*180/pi, pos_geo(:,2)*180/pi, bool_true_pos, pos_true_geo.lat*180/pi, pos_true_geo.lon*180/pi, station_date, ff)
     end
-    vis_MaPlot(pos_geo(:,1)*180/pi, pos_geo(:,2)*180/pi, bool_true_pos, ...
-        pos_true_geo.lat*180/pi, pos_true_geo.lon*180/pi, station_date, ff)
 end
 if STOP_CALC; return; end
 
+
+% -+-+-+-+- Figure: Velocity Plot -+-+-+-+-
+if settings.PLOT.velocity
+    velocity = storeData.param(:,4:6);
+    velocityPlot(velocity, pos_cart, xyz_true', secnds, label_x_sec)
+end
 
 % -+-+-+-+- Figure: UTM Plot -+-+-+-+-
 if settings.PLOT.UTM
@@ -204,7 +210,7 @@ if STOP_CALC; return; end   %#ok<*UNRCH>
 % -+-+-+-+- Figure: Receiver Clock Plot -+-+-+-+-
 if settings.PLOT.clock
     vis_plotReceiverClock(hours, label_x_h, param_', reset_h, ff_p, ...
-        settings, settings.ORBCLK.file_clk, station, obs.startdate(1:3), storeData.NO_PARAM);
+        settings, settings.ORBCLK.file_clk, station, obs.startdate(1:3), storeData.NO_PARAM, storeData.ORDER_PARAM);
 end
 if STOP_CALC; return; end
 
@@ -251,7 +257,7 @@ end
 if STOP_CALC; return; end
 
 
-if strcmpi(settings.PROC.method,'Code + Phase') && settings.PLOT.amb
+if bool_phase && settings.PLOT.amb
     %     -+-+-+-+- Figure: Float Ambiguity Plots -+-+-+-+-
     if settings.PLOT.float
         if isGPS    % GPS processed
@@ -279,7 +285,7 @@ if STOP_CALC; return; end
 
 
 %     -+-+-+-+- Figure: Observation Residuals Plot  -+-+-+-+-
-%                       for Code & Phase and for each GNSS
+%                       for Code & Phase & Doppler and for each GNSS
 if settings.PLOT.residuals
     plotResiduals(storeData, settings, epochs, reset_h, hours, label_x_h, satellites, rgb);
 end
@@ -297,7 +303,7 @@ if STOP_CALC; return; end
 
 
 %     -+-+-+-+- Figure: Standard Deviation of Ambiguities  -+-+-+-+-
-if settings.PLOT.cov_amb && strcmpi(settings.PROC.method,'Code + Phase')
+if settings.PLOT.cov_amb && bool_phase
     std_amb = sqrt(full(storeData.N_var_1));      % standard deviations of estimated ambiguities
     if settings.INPUT.proc_freqs > 1; std_amb(:,:,2) = sqrt(full(storeData.N_var_2)); end
     if settings.INPUT.proc_freqs > 2; std_amb(:,:,3) = sqrt(full(storeData.N_var_3)); end
@@ -347,7 +353,7 @@ if STOP_CALC; return; end
 
 
 %     -+-+-+-+- Figures: Cycle Slip Detection Plot  -+-+-+-+-
-if settings.PLOT.cs && strcmpi(settings.PROC.method,'Code + Phase')
+if settings.PLOT.cs && bool_phase
     % L1-C1 Difference
     if settings.OTHER.CS.l1c1
         if isGPS; vis_cs_SF(storeData, settings.OTHER.CS, 'G'); end
@@ -428,20 +434,22 @@ if STOP_CALC; return; end
 %     -+-+-+-+- Figures: Residuals for each satellite  -+-+-+-+-
 % ||| check division in float and fixed
 if settings.PLOT.res_sats
+    elev = full(satellites.elev);
+    CN0_1 = full(satellites.SNR_1);
     if isGPS
-        vis_res_sats(storeData, 'G', settings);
+        vis_res_sats(storeData, 'G', settings, elev, CN0_1);
     end
     if isGLO
-        vis_res_sats(storeData, 'R', settings);
+        vis_res_sats(storeData, 'R', settings, elev, CN0_1);
     end
     if isGAL
-        vis_res_sats(storeData, 'E', settings);
+        vis_res_sats(storeData, 'E', settings, elev, CN0_1);
     end
     if isBDS
-        vis_res_sats(storeData, 'C', settings);
+        vis_res_sats(storeData, 'C', settings, elev, CN0_1);
     end
     if isQZSS
-        vis_res_sats(storeData, 'J', settings);
+        vis_res_sats(storeData, 'J', settings, elev, CN0_1);
     end    
 end
 if STOP_CALC; return; end

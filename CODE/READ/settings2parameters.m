@@ -13,6 +13,7 @@ function [parameters] = settings2parameters(settings)
 %  
 % Revision:
 % 	2023/08/04, MFG: improved export of variables
+% 	2025/12/02, MFWG: change function to handle missing fields
 % 
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
@@ -29,23 +30,18 @@ parameters.AMBFIX = settings.AMBFIX;
 parameters.ADJ    = settings.ADJ;
 parameters.PROC   = settings.PROC;
 
-% delete variables which are observation-file-specific
-parameters.PROC = rmfield(parameters.PROC, 'name');
-parameters.PROC = rmfield(parameters.PROC, 'timeFrameFrom');
-parameters.PROC = rmfield(parameters.PROC, 'timeFrameTo');
-parameters.PROC = rmfield(parameters.PROC, 'timeFrame');
-parameters.PROC = rmfield(parameters.PROC, 'timeSpan_format_epochs');
-parameters.PROC = rmfield(parameters.PROC, 'timeSpan_format_HOD');
-parameters.PROC = rmfield(parameters.PROC, 'timeSpan_format_SOD');
-parameters.PROC = rmfield(parameters.PROC, 'reset_float');
-parameters.PROC = rmfield(parameters.PROC, 'reset_fixed');
-parameters.PROC = rmfield(parameters.PROC, 'reset_after');
-parameters.PROC = rmfield(parameters.PROC, 'reset_bool_epoch');
-parameters.PROC = rmfield(parameters.PROC, 'reset_bool_min');
-parameters.PROC = rmfield(parameters.PROC, 'exclude_epochs');
-parameters.PROC = rmfield(parameters.PROC, 'excl_eps');
-parameters.PROC = rmfield(parameters.PROC, 'excl_epochs_reset');
-parameters.PROC = rmfield(parameters.PROC, 'exclude');
-parameters.PROC = rmfield(parameters.PROC, 'excl_partly');
-parameters.PROC = rmfield(parameters.PROC, 'exclude_sats');
+% define the fields to remove from parameters.PROC
+remove = {...
+    'name', 'timeFrameFrom', 'timeFrameTo', 'timeFrame', ...
+    'timeSpan_format_epochs', 'timeSpan_format_HOD', 'timeSpan_format_SOD', ...
+    'reset_float', 'reset_fixed', 'reset_after', 'reset_bool_epoch', ...
+    'reset_bool_min', 'exclude_epochs', 'excl_eps', 'excl_epochs_reset', ...
+    'exclude', 'excl_partly', 'exclude_sats'};
+% check which fields are existing and must be removed
+existing = fieldnames(parameters.PROC);
+ActuallyRemove = remove(ismember(remove, existing));
+% remove these fields
+parameters.PROC = rmfield(parameters.PROC, ActuallyRemove);
+
+
 

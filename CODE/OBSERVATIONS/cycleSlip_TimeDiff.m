@@ -57,7 +57,7 @@ Epoch.cs_phase_obs(Epoch.cs_phase_obs==0) = NaN;
 
 
 %% Perform cycle-slip detection
-if settings.ADJ.satellite.bool
+if ~settings.KINE.satellite.bool
 
     % build time difference
     phase_epoch = Epoch.cs_phase_obs(:,Epoch.sats);

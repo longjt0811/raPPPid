@@ -1,21 +1,21 @@
 function [X, V, dT_rel, exclude, status] = ...
-    satelliteOrbitBrdc(Ttr, Eph, isGPS, isGLO, isGAL, isBDS, isQZSS, k, corr2brdc, exclude, status, corr_orb)
+    satelliteOrbitBrdc(Ttr, Eph, isGPS, isGLO, isGAL, isBDS, isQZSS, corr2brdc, exclude, status, corr_orb)
 % Calculate satellite position from navigation message and corrections of
 % real-time correction stream.
 %
 % INPUT:
 % 	Ttr         transmission time, sow (GPS time)
-% 	Eph         matrix, read-in of navigation message
-%   isGPS       boolean, GPS-satellite
-%   isGLO       boolean, Glonass-satellite
-%   isGAL       boolean, Galileo-satellite
-%   isBDS       boolean, BeiDou-satellite
-%   isQZSS      boolean, QZSS-satellite
-% 	k           column of ephemerides according to time and sv
+% 	Eph         30x1, current navigation message of this satellite
+%   isGPS       boolean, GPS satellite
+%   isGLO       boolean, Glonass satellite
+%   isGAL       boolean, Galileo satellite
+%   isBDS       boolean, BeiDou satellite
+%   isQZSS      boolean, QZSS satellite
 %   corr2brdc	boolean, from settings.ORBCLK.corr2brdc_orb
-%   exclude     true, if satellite has to be excluded
-%   status      satellite status
-%   corr_orb    current corrections to broadcast message
+%   exclude     boolean, true = exclude satellite
+%   status      integer, satellite status as number
+%   corr_orb    8x1, current corrections to broadcast message for current 
+%               satellite [timestamp, radial, along, outof, v_radial, v_along, v_outof, IOD]
 %
 % OUTPUT:
 %   X           satellite position [m]
@@ -28,6 +28,7 @@ function [X, V, dT_rel, exclude, status] = ...
 %   2025/02/12, MFWG: call of function SatPos_brdc changed
 %   2025/09/13, MFWG: change structure
 %   2025/10/02, MFWG: separate from satelliteOrbit.m
+%   2025/11/10, MFWG: input changed
 %
 % This function belongs to raPPPid, Copyright (c) 2023, M.F. Glaner
 % *************************************************************************
@@ -55,12 +56,12 @@ end
 %%  Calculations
 
 if isGPS || isGAL
-    [X, V, dT_rel] = SatPos_brdc(Ttr,  Eph(:,k), GM, we_dot);
+    [X, V, dT_rel] = SatPos_brdc(Ttr,  Eph, GM, we_dot);
 elseif isBDS
     Ttr_ = Ttr - Const.BDST_GPST;        % convert GPST to BDT
-    [X, V, dT_rel] = SatPos_brdc(Ttr_, Eph(:,k), GM, we_dot);
+    [X, V, dT_rel] = SatPos_brdc(Ttr_, Eph, GM, we_dot);
 elseif isGLO
-    [X, V] = SatPos_brdc_GLO(Ttr, Eph(:,k));
+    [X, V] = SatPos_brdc_GLO(Ttr, Eph);
     % dT_rel already applied in satelliteClock.m
 end
 

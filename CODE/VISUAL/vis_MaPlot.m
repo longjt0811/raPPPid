@@ -3,11 +3,11 @@ function [] = vis_MaPlot(lat, lon, bool_true_pos, lat_true, lon_true, station_da
 % (c) MFG, January 2020
 %
 % INPUT:
-%   lat             vector, latitude  [°] of all epochs
-%   lon             vector, longitude [°] of all epochs
+%   lat             nx1, vector, latitude  [°] of all epochs
+%   lon             nx1, vector, longitude [°] of all epochs
 %   bool_true_pos   boolean, true/false if true position known
-%   lat_true        true latitude [°]
-%   lon_true        true longitude [°]
+%   lat_true        nx1, vector, true latitude [°]
+%   lon_true        nx1, vector, true longitude [°]
 %   station_date    string, station and date, for styling
 %   floatfix        string, float or fixed position, for styling
 % OUTPUT:

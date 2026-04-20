@@ -27,12 +27,13 @@ storeData.param = []; storeData.param_sigma = []; storeData.param_var = [];
 storeData.exclude = [];	storeData.cs_found = [];
 storeData.PDOP = []; storeData.HDOP = []; storeData.VDOP = [];
 storeData.zhd = []; storeData.zwd = [];
-storeData.N_1 = []; storeData.N_var_1 = []; storeData.residuals_code_1 = [];
-storeData.N_2 = []; storeData.N_var_2 = []; storeData.residuals_code_2 = [];
-storeData.N_3 = []; storeData.N_var_3 = []; storeData.residuals_code_3 = [];
+storeData.N_1 = []; storeData.N_var_1 = []; storeData.residuals_code_1 = []; storeData.residuals_doppler_1 = [];
+storeData.N_2 = []; storeData.N_var_2 = []; storeData.residuals_code_2 = []; storeData.residuals_doppler_2 = [];
+storeData.N_3 = []; storeData.N_var_3 = []; storeData.residuals_code_3 = []; storeData.residuals_doppler_3 = [];
 storeData.fixed = []; storeData.ttff = [];
 storeData.refSatGPS = []; storeData.refSatGLO = []; storeData.refSatGAL = []; storeData.refSatBDS = []; storeData.refSatQZS = [];
 storeData.param_fix = []; storeData.param_var_fix = [];
+storeData.posFixed_utm = []; storeData.posFixed_geo = [];
 storeData.HMW_12 = []; storeData.HMW_23 = []; storeData.HMW_13 = [];
 storeData.residuals_code_fix_1 = []; storeData.residuals_phase_fix_1 = [];
 storeData.residuals_code_fix_2 = []; storeData.residuals_phase_fix_2 = [];
@@ -70,7 +71,13 @@ if ~isfile(floatpath)
 end
 
 % read table
-FLOAT = readtable(floatpath);
+try
+    FLOAT = readtable(floatpath);
+catch
+    % reading table failed (e.g., file not accessible)
+    success = false; 
+    return
+end
 
 % get header (column names)
 header = FLOAT.Properties.VariableNames;
@@ -82,6 +89,7 @@ idx_param = idx_1:numel(header);
 % extract order of parameter and .param 
 storeData.ORDER_PARAM = header(idx_param);
 storeData.param = table2array(FLOAT(:, idx_param));
+storeData.NO_PARAM = numel(idx_param);
 
 % float position in UTM and geographic coordinates
 storeData.posFloat_utm = [FLOAT.x_UTM, FLOAT.y_UTM, FLOAT.height];
@@ -91,8 +99,14 @@ storeData.posFloat_geo = [FLOAT.latitude, FLOAT.longitude, FLOAT.height];
 storeData.gpstime = FLOAT.sow;
 
 % modeled ZHD and ZWD
-storeData.zhd = FLOAT.zhdModel;
-storeData.zwd = FLOAT.zwdModel;
+try
+    storeData.zhd = FLOAT.zhd_model;
+    storeData.zwd = FLOAT.zwd_model;
+catch
+    storeData.zhd = FLOAT.zhdModel;
+    storeData.zwd = FLOAT.zwdModel;
+end
+
 
 % recover epochs with a reset of the float solution
 epochs = 1:numel(FLOAT.reset);
@@ -126,7 +140,12 @@ if ~isfile(fixedpath)
 end
 
 % read table
-FIXED = readtable(fixedpath);
+try
+    FIXED = readtable(fixedpath);
+catch
+    errordlg({'read_results_csv.m failed using readtable for' fixedpath}, 'Error');
+    return
+end
 
 % extract .param 
 storeData.param_fix = table2array(FIXED(:,idx_param));

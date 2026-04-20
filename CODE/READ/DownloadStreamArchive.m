@@ -100,30 +100,52 @@ switch settings.ORBCLK.CorrectionStream
     case 'CAS Archive'
         % from the data center of the Chinese Academy of Sciences (CAS)
         httpserver = ['https://data.bdsmart.cn/pub/product/rts/rtpp/' yyyy];        
-        file_sp3  = ['CAS0MGXRTS_' yyyy doy '0000_01D_05M_ORB.SP3.gz'];
+        file_sp3  = ['CAS0MGXRTS_' yyyy doy '0000_01D_05M_ORB.SP3.GZ'];
         dcmpr_sp3 = ['CAS0MGXRTS_' yyyy doy '0000_01D_05M_ORB.SP3'];
-        file_clk  = ['CAS0MGXRTS_' yyyy doy '0000_01D_30S_CLK.CLK.gz'];
+        file_clk  = ['CAS0MGXRTS_' yyyy doy '0000_01D_30S_CLK.CLK.GZ'];
         dcmpr_clk = ['CAS0MGXRTS_' yyyy doy '0000_01D_30S_CLK.CLK'];
-        % try to download
+        file_bia  = ['CAS0MGXRTS_' yyyy doy '0000_01D_01D_OSB.BIA.GZ'];
+        dcmpr_bia = ['CAS0MGXRTS_' yyyy doy '0000_01D_01D_OSB.BIA']; 
+        % try to download sp3
         if ~isfile([target file_sp3]) && ~isfile([target dcmpr_sp3])
-            try websave([target file_sp3], [httpserver '/' file_sp3]); end      %#ok<*TRYNC>
-        end           
+            try websave([target file_sp3], [httpserver '/' file_sp3]); end
+        end
+        if ~isfile([target file_sp3]) && ~isfile([target dcmpr_sp3])
+            file_sp3  = ['CAS0MGXRTS_' yyyy doy '0000_01D_01M_ORB.SP3.GZ'];
+            dcmpr_sp3 = ['CAS0MGXRTS_' yyyy doy '0000_01D_01M_ORB.SP3'];
+            if ~isfile([target file_sp3]) && ~isfile([target dcmpr_sp3])
+                try websave([target file_sp3], [httpserver '/' file_sp3]); end
+            end
+        end
+        % try to download clk
         if ~isfile([target file_clk]) && ~isfile([target dcmpr_clk]) && ~isfile([target dcmpr_clk '.mat'])
             try websave([target file_clk], [httpserver '/' file_clk]); end      %#ok<*TRYNC>
         end
+        % try to download bia
+        if ~isfile([target file_bia]) && ~isfile([target dcmpr_bia]) && ~isfile([target dcmpr_bia '.mat'])
+            try websave([target file_bia], [httpserver '/' file_bia]); end      %#ok<*TRYNC>
+        end        
         % unzip if download was successful
         sp3_file_path = unzip_and_delete({file_sp3}, {target});
         clk_file_path = unzip_and_delete({file_clk}, {target});
+        bia_file_path = unzip_and_delete({file_bia}, {target});
+        % check existence
         if ~isfile(sp3_file_path)
             errordlg({'No CAS real-time orbits found in archive.', 'Please do not use!'}, 'Error');
         end
         if ~isfile(clk_file_path) && ~isfile([clk_file_path{1} '.mat'])
             errordlg({'No CAS real-time clocks found in archive.', 'Please do not use!'}, 'Error');
         end
+        if ~isfile(bia_file_path) && ~isfile([bia_file_path{1} '.mat'])
+            errordlg({'No CAS real-time biases found in archive.', 'Please do not use!'}, 'Error');
+        end        
         % orbit and clock handling like with "Precise Products" (sp3 and clk-file)
         settings.ORBCLK.file_sp3 = sp3_file_path{1};
         settings.ORBCLK.file_clk = clk_file_path{1};
-        
+        % use .bia-file
+        settings.BIASES.code_file  = [target dcmpr_bia];
+        settings.BIASES.phase_file = [target dcmpr_bia];
+
 end
 
 % orbit and clock handling like with "Precise Products": sp3, clk

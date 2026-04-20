@@ -1,7 +1,7 @@
 function [model, Epoch] = modelApproximately(settings, input, Epoch, param, obs, iteration)
 % This function is a simpler version of modelErrorSources.m and models error
 % sources for modelling the observation for calculating an approximate
-% position. QZSS is ignored.
+% position or velocity. 
 % 
 % INPUT:
 %   settings    	settings from GUI  [struct]
@@ -18,12 +18,18 @@ function [model, Epoch] = modelApproximately(settings, input, Epoch, param, obs,
 % *************************************************************************
 
 
+% receiver position in ECEF and geodetic coordinates
 pos_XYZ = param(1:3);
 pos_WGS84 = cart2geo(param(1:3));
-n_num_frq  = settings.INPUT.num_freqs;  % number of input frequencies (e.g. 2 for IF-LC)
-proc_frqs = settings.INPUT.proc_freqs;   % number of processed frequencies
-frqs = 1:proc_frqs;              % 1 : # processed frequencies
-num_sat = Epoch.no_sats;        % number of satellites in current epoch
+
+% get some variables
+n_num_frq  = settings.INPUT.num_freqs;      % number of input frequencies (e.g. 2 for IF-LC)
+proc_frqs = settings.INPUT.proc_freqs;      % number of processed frequencies
+frqs = 1:proc_frqs;                 % 1 : # processed frequencies
+num_sat = Epoch.no_sats;            % number of satellites in current epoch
+
+% initialize the struct model
+model = init_struct_model(num_sat, proc_frqs, n_num_frq);  	% Init struct model
 
 % indices of processed frequencies
 j_proc = 1:settings.INPUT.num_freqs;
@@ -32,6 +38,7 @@ idx_frqs_glo  = settings.INPUT.glo_freq_idx(j_proc);
 idx_frqs_gal  = settings.INPUT.gal_freq_idx(j_proc);
 idx_frqs_bds  = settings.INPUT.bds_freq_idx(j_proc);
 idx_frqs_qzss = settings.INPUT.qzss_freq_idx(j_proc);
+
 % remove frequencies set to OFF (if different number of frequencies is 
 % processed for different GNSS)
 idx_frqs_gps(idx_frqs_gps>DEF.freq_GPS(end)) = [];
@@ -43,8 +50,6 @@ idx_frqs_qzss(idx_frqs_qzss>DEF.freq_QZSS(end)) = [];
 
 % ----- Epoch-specific corrections -----
 % corrections which are valid for all satellites but only for a specific epoch
-
-model = init_struct_model(num_sat, proc_frqs, n_num_frq);  	% Init struct model
 % --- Calculate hour and approximate sun and moon position for epoch ---
 h = mod(Epoch.gps_time,86400)/3600;
 model.sunECEF  = sunPositionECEF(obs.startdate(1), obs.startdate(2), obs.startdate(3), h);
@@ -65,7 +70,7 @@ for i_sat = 1:num_sat
     isQZSS = Epoch.qzss(i_sat);    % is current satellite a beidou sat.?
     f1 = Epoch.f1(i_sat);   f2 = Epoch.f2(i_sat);   f3 = Epoch.f3(i_sat);
     dT_rel = 0;
-    Epoch.exclude = false;                 % cutoff-angle
+    exclude = false;                 % cutoff-angle
     status = Epoch.sat_status(i_sat,:);
     
     % get orbits and clocks
@@ -95,15 +100,19 @@ for i_sat = 1:num_sat
     dt_rx = (isGPS*param(7) + isGLO*param(8) + isGAL*param(9) + isBDS*param(10))/Const.C;
     
     % --- Ttr....transmission time/time of emission
-    tau = Epoch.code(i_sat)/Const.C;    % approximate signal runtime from sat. to rec.
-    Ttr = Epoch.gps_time - tau;       	% time of emission [sow (seconds of week)] = time of obs. - runtime´
-    if isnan(tau); Epoch.exclude = true; continue; end
+    dT_sat = 0; dT_rel = 0;
+    code_dist = Epoch.code(i_sat);
+    [Ttr, tau] = calcTimeOfTransmission(code_dist, Epoch.gps_time, dT_sat, dT_rel);
+    if isnan(tau) 
+        Epoch.exclude(i_sat,frqs) = true;       % eliminate satellite
+        continue; 
+    end
 
     % --- Get column of broadcast ephemerides for current satellite ---
     k = Epoch.BRDCcolumn(prn);
     if settings.ORBCLK.bool_brdc && isnan(k)      % no ephemeris
         if ~settings.INPUT.bool_parfor; fprintf('No broadcast orbit data for satellite %f.0 in SOW %.3f              \n', prn, Ttr); end
-        Epoch.exclude = true;      % eliminate satellite
+        Epoch.exclude(i_sat,frqs) = true;       % eliminate satellite
         Epoch.status(:) = 15;
         Epoch.tracked(prn) = 1;
         continue
@@ -112,13 +121,13 @@ for i_sat = 1:num_sat
     % --- Clock correction: with precise clocks from .clk-file or navigation data ---
     % Clock correction in seconds, accurate enough with approximate Ttr
     if settings.ORBCLK.bool_clk
-        [dT_sat, exclude] = satelliteClock(sv, Ttr, preciseClk);
+        [dT_sat, noclock] = satelliteClock(sv, Ttr, preciseClk);
     else
-        [dT_sat, exclude] = satelliteClockBrdc(Ttr, Eph_brdc, isGPS, isGLO, isGAL, isBDS, isQZSS, k, settings.ORBCLK.corr2brdc_clk, Epoch.corr2brdc_clk(:,prn));
+        [dT_sat, noclock] = satelliteClockBrdc(Ttr, Eph_brdc(:,k), isGPS, isGLO, isGAL, isBDS, isQZSS, settings.ORBCLK.corr2brdc_clk, Epoch.corr2brdc_clk(:,prn));
     end
-    if isnan(dT_sat) || dT_sat == 0 || exclude       % no clock correction
-        if ~settings.INPUT.bool_parfor; fprintf('No precise clock data for satellite %f.0 in SOW %0.3f              \n', prn, Ttr); end
-        exclude = true;                      % eliminate satellite
+    if isnan(dT_sat) || dT_sat == 0 || noclock       % no clock correction
+        if ~settings.INPUT.bool_parfor; fprintf('No precise clock data for satellite %.0f in SOW %0.3f              \n', prn, Ttr); end
+        exclude = true;                 % eliminate satellite
         status(:) = 5;
         Epoch.tracked(prn) = 1;         % set epoch counter for this satellite to 1
     end   
@@ -127,23 +136,17 @@ for i_sat = 1:num_sat
         dT_sat_rel = dT_sat + dT_rel;
         
         % --- correction of Time of emission ---
-        tau = (Epoch.code(i_sat) + Const.C*dT_sat_rel)/Const.C; % corrected signal runtime
-        Ttr = Epoch.gps_time - tau;                             % time of emission = time of obs. - runtime
-        
+        [Ttr, tau] = calcTimeOfTransmission(code_dist, Epoch.gps_time, dT_sat, dT_rel);
+
         % --- Satellite-Orbit: precise ephemeris (.sp3-file) or broadcast navigation data (perhabs + correction stream) ---
         if settings.ORBCLK.bool_sp3
             [X, V, ~, exclude, status] = satelliteOrbit(prn, Ttr, preciseEph, settings, exclude, status);
         else
-            [X, V, ~, exclude, status] = satelliteOrbitBrdc(Ttr, Eph_brdc, isGPS, isGLO, isGAL, isBDS, isQZSS, k, settings.ORBCLK.corr2brdc_orb, exclude, status, Epoch.corr2brdc_orb(:,prn));
+            [X, V, ~, exclude, status] = satelliteOrbitBrdc(Ttr, Eph_brdc(:,k), isGPS, isGLO, isGAL, isBDS, isQZSS, settings.ORBCLK.corr2brdc_orb, exclude, status, Epoch.corr2brdc_orb(:,prn));
         end
         % --- correction of satellite ECEF position for earth rotation during runtime tau ---
         tau = tau - dt_rx;  % Correct tau for receiver clock error to avoid jumps in sat position
-        omegatau = Const.WE*tau;     % [rad]
-        R3 = [  cos(omegatau) sin(omegatau)     0;
-               -sin(omegatau) cos(omegatau)     0;
-                0               0               1];
-        X_rot = R3*X;
-        V_rot = R3*V;
+        [X_rot, V_rot] = correctEarthRotation(tau, X, V);
         
         % --- Relativistic correction ---
         dT_rel = -2/Const.C^2 * dot2(X_rot, V_rot);
@@ -221,7 +224,14 @@ for i_sat = 1:num_sat
                 iono(2) = 40.3/f2^2 * stec;
                 iono(3) = 40.3/f3^2 * stec;
             case 'VTEC from Correction Stream'
-                stec = corr2brdc_stec(input.ORBCLK.corr2brdc_vtec, az, el, pos_WGS84, Ttr);
+                % find nearest VTEC data in correction stream       ||| interpolate
+                dt = Ttr - input.ORBCLK.corr2brdc_vtec.t;     % time difference [sow]
+                dt(dt<0) = [];                  % ignore future data to maintain real-time conditions
+                idx = find(dt == min(dt));  	% index of nearest VTEC data
+                C_nm = input.ORBCLK.corr2brdc_vtec.Cnm(:,:,idx);	% cosine coefficients [TECU]
+                S_nm = input.ORBCLK.corr2brdc_vtec.Snm(:,:,idx); 	% sine coefficients [TECU]
+                % calculate STEC and ionospheric delay on signal frequencies
+                stec = corr2brdc_stec(C_nm, S_nm, input.ORBCLK.corr2brdc_vtec.height, az, el, pos_WGS84.lat, pos_WGS84.lon, pos_WGS84.h, Ttr);
                 iono = stec2iono(stec, f1, f2, f3); 	% calculate ionospheric delay from STEC
                 
             % otherwise is handled before switch

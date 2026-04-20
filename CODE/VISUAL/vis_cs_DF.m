@@ -60,6 +60,15 @@ elseif sys(end) == 'J'    	% QZSS
     col = DEF.COLOR_J;    
 end
     
+% prepare data for plotting
+dL1dL2_ = full(dL1dL2);
+
+% check if any data at all (e.g., frequency not processed)
+if all(all( dL1dL2_(:, loop) == 0 ))
+    return
+end
+
+
 % plot the satellites
 fig1 = figure('Name', ['Cycle Slip Detection' sys(1:end-2) ', ' char2gnss(sys(end))], 'units','normalized', 'outerposition',[0 0 1 1], 'NumberTitle','off');
 ii = 1;         % counter of subplot number
@@ -71,7 +80,7 @@ set(dcm, 'updatefcn', @vis_customdatatip_CycleSlip)
 
 for i = loop
     % Plotting
-    data = full(dL1dL2(:,i));
+    data = dL1dL2_(:,i);
     if any(data~=0)
         if ii == 17
             set(findall(gcf,'type','text'),'fontSize',8)

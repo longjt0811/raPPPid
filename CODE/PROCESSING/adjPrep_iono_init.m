@@ -1,4 +1,4 @@
-function [Epoch, Adjust] = adjPrep_iono_init(settings, Adjust, Epoch, obs)
+function [Epoch, Adjust] = adjPrep_iono_init(settings, Adjust, Epoch, obs, input)
 % This function initializes the parameter vector, covariance matrix, Noise
 % matrix and Transition matrix in epochs without valid float solution, for
 % example, in the first epoch or in epochs after a reset of the solution.
@@ -8,6 +8,7 @@ function [Epoch, Adjust] = adjPrep_iono_init(settings, Adjust, Epoch, obs)
 %   Adjust          struct, all adjustment relevant data
 %   Epoch           struct, epoch-specific data for current epoch
 %   obs             struct, observation-specific data
+%   input           struct, input data
 % OUTPUT:
 %   Epoch           updated
 %   Adjust          updated
@@ -33,7 +34,8 @@ BDS_ON  = settings.INPUT.use_BDS;
 QZSS_ON = settings.INPUT.use_QZSS;
 
 % check for processing settings
-bool_code_phase = strcmpi(settings.PROC.method,'Code + Phase');
+bool_phase = contains(settings.PROC.method,'+ Phase');
+bool_doppler = contains(settings.PROC.method,'+ Doppler'); 
 bool_filter = ~strcmp(FILTER.type, 'No Filter');
 dcb_12_on = settings.BIASES.estimate_rec_dcbs && num_freq >= 2;
 dcb_13_on = settings.BIASES.estimate_rec_dcbs && num_freq >= 3;
@@ -42,18 +44,27 @@ dcb_13_on = settings.BIASES.estimate_rec_dcbs && num_freq >= 3;
 NO_PARAM = Adjust.NO_PARAM;             % number of estimated parameters
 no_sats = Epoch.no_sats;                % number of satellites of current epoch
 s_f = no_sats*num_freq;               	% #satellites x #frequencies
-no_ambig = s_f * bool_code_phase;	% number of estimated ambiguities
+no_ambig = s_f * bool_phase;	        % number of estimated ambiguities
 N_eye = eye(s_f);                       % square unit matrix, size = number of ambiguities
 N_idx = (NO_PARAM+1):(NO_PARAM+s_f);  	% indices of the ambiguities
 
 
 
 %% parameter vector
-param_vec = zeros(NO_PARAM + no_ambig + no_sats, 1);    % 22 + #ambiguities + #ionospheric delays
-param_vec(1:3,1) = settings.INPUT.pos_approx;           % approximate position (X,Y,Z)
+param_vec = zeros(NO_PARAM + no_ambig + no_sats, 1);    % 23 + #ambiguities + #ionospheric delays
+% insert approximate position (X,Y,Z)
+if ~settings.KINE.bool_kinematic
+    param_vec(1:3) = settings.INPUT.pos_approx;  
+end
+if settings.KINE.bool_kinematic || norm(param_vec(1:3)) == 0
+    param_vec(1:3) = ApproximatePosition(Epoch, input, obs, settings);
+end
+%  insert approximate velocity (X,Y,Z) and receiver clock drift
+if settings.KINE.bool_kinematic && bool_doppler
+    [param_vec(4:6), param_vec(23)] = ApproximateVelocity(Epoch, input, obs, settings, param_vec(1:3));
+end
+% other parameters don´t have/need approximate values so they stay zero
 param_pred = param_vec;         % no prediction in first epoch
-% other parameters don´t have approximate values so they are zero
-
 
 
 
@@ -62,7 +73,7 @@ param_sigma = eye(NO_PARAM + no_ambig + no_sats);       % initialize
 
 % build matrix with a priori variances of parameters (from GUI):
 param_sigma(1:3,1:3)    = eye(3)*FILTER.var_coord;      % position
-if settings.ADJ.satellite.bool
+if settings.KINE.bool_kinematic
     param_sigma(1:3,1:3)    = eye(3)*FILTER.var_velocity; 	% velocity
 end
 param_sigma(7,7)        = FILTER.var_zwd;               % zenith wet delay
@@ -115,9 +126,12 @@ if dcb_13_on        % DCBs between 1st and 3rd frequency
         param_sigma(22,22) 	= FILTER.var_DCB;	% QZSS DCB between frequency 1 and 3
     end
 end
+if bool_doppler
+    param_sigma(23,23) = FILTER.var_rclk_drift; % receiver clock drift 
+end
 
 % add float ambiguities
-if bool_code_phase
+if bool_phase
     param_sigma(N_idx,N_idx) = N_eye*FILTER.var_amb;
 end
 
@@ -131,7 +145,7 @@ if bool_filter
     %% Noise Matrix
     Noise = zeros(NO_PARAM);
     Noise(1:3,1:3)   = eye(3)*FILTER.Q_coord;           % position
-    if settings.ADJ.satellite.bool
+    if settings.KINE.bool_kinematic
         Noise(4:6,4:6)   = eye(3)*FILTER.Q_velocity;       	% velocity
     end
     Noise(7,7)   	 = FILTER.Q_zwd;                	% zenith wet delay, usually 2-5mm/sqrt(h) ([00]: p.30)
@@ -160,13 +174,21 @@ if bool_filter
         Noise(21,21) = FILTER.Q_DCB * dcb_12_on;        % QZSS DCB between frequency 1 and 2
         Noise(22,22) = FILTER.Q_DCB * dcb_13_on;        % QZSS DCB between frequency 1 and 3
     end
-    
+    if bool_doppler
+        Noise(23,23) = FILTER.Q_rclk_drift;             % receiver clock drift
+    end
+
+
 
     %% Transition Matrix
     Transition = eye(NO_PARAM);      % initialize
     
     % build Transition matrix with dynamic model from GUI
-    Transition(1:3,1:3) = eye(3)*FILTER.dynmodel_coord;     % coordinates
+    if FILTER.dynmodel_coord ~= 2   % static or no model
+        Transition(1:3,1:3) = eye(3)*FILTER.dynmodel_coord;     % coordinates
+    else    % linear model with velocity
+        Transition(1:3,1:3) = eye(3);
+    end
     Transition(4:6,4:6) = eye(3)*FILTER.dynmodel_velocity;	% velocity
     Transition(7,7)     = FILTER.dynmodel_zwd;              % zenith wet delay
     Transition(8,8)     = FILTER.dynmodel_rclk_gps;	% GPS Receiver Clock
@@ -184,7 +206,7 @@ if bool_filter
     Transition(20,20)   = FILTER.dynmodel_rclk_qzss;% QZSS Receiver Clock
     Transition(21,21)  	= FILTER.dynmodel_DCB;  	% QZSS DCB between frequency 1 and 2
     Transition(22,22) 	= FILTER.dynmodel_DCB;  	% QZSS DCB between frequency 1 and 3
-    
+    Transition(23,23) 	= FILTER.dynmodel_rclk_drift;       % receiver clock drift 
     
 else
     % Transition and Noise Matrix are not needed

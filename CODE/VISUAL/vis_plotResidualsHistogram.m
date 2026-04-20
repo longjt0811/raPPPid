@@ -1,13 +1,15 @@
-function vis_plotResidualsHistogram(Code_res, Phase_res, floatfix, ...
-    gps_prns, glo_prns, gal_prns, bds_prns, qzss_prns, bool_phase)
+function vis_plotResidualsHistogram(Code_res, Phase_res, Doppler_res, floatfix, ...
+    gps_prns, glo_prns, gal_prns, bds_prns, qzss_prns, bool_phase, bool_doppler)
 % Creates a histogram of the code and phase residuals for each GNSS
 % 
 % INPUT:
-%   Code/Phase_res      matrix with code/phase residuals for all epochs and satellites
+%   Code/Phase_res/Doppler_res      
+%                       matrix with code/phase/Doppler residuals for all epochs and satellites
 %   floatfix            string, which solution is plotted
 %   gps_/glo_/gal_/bds_/qzss_prns
 %                       satellites which were observed from this GNSS
 %   bool_phase          true if phase was processed
+%   bool_doppler        true if Doppler was processed
 % OUTPUT:
 %   []
 %
@@ -20,7 +22,7 @@ function vis_plotResidualsHistogram(Code_res, Phase_res, floatfix, ...
 % PREPARATIONS
 no_rows = ~isempty(gps_prns) + ~isempty(glo_prns) + ~isempty(gal_prns) + ~isempty(bds_prns) + ~isempty(qzss_prns); 	% number of plot rows
 no_frqs = size(Code_res, 3);        % number of frequencies
-no_cols = (1 + ~isempty(Phase_res)) * no_frqs;      % number of plot columns
+no_cols = (1 + ~isempty(Phase_res) + ~isempty(Doppler_res)) * no_frqs;      % number of plot columns
 fig_histo =  figure('Name', ['Histogram ' floatfix ' Residuals'], 'NumberTitle','off');
 i_plot = 1;
 % add customized datatip
@@ -35,12 +37,15 @@ if ~isempty(gps_prns)
         if all(all(NAN(:,gps_prns,j))); i_plot = i_plot + 1 + bool_phase; continue; end
         subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
         if all(Code_res(:,gps_prns,j) == 0);            continue;        end
-        plotCodeHisto(Code_res(:,gps_prns,j), 'GPS', sprintf('%d', j), [1 0 0])
+        plotCodeHisto(Code_res(:,gps_prns,j), 'GPS', sprintf('%d', j), DEF.COLOR_G)
         if ~isempty(Phase_res) && bool_phase
             subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
-            plotPhaseHisto(Phase_res(:,gps_prns,j), 'GPS', sprintf('%d', j), [0.5 0 0])
+            plotPhaseHisto(Phase_res(:,gps_prns,j), 'GPS', sprintf('%d', j), DEF.COLOR_G*0.66)
         end
-        
+        if ~isempty(Doppler_res) && bool_doppler
+            subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
+            plotDopplerHisto(Doppler_res(:,gps_prns,j), 'GPS', sprintf('%d', j), DEF.COLOR_G/3)
+        end    
     end
 end
 
@@ -49,11 +54,15 @@ if ~isempty(glo_prns)
     for j = 1:no_frqs     % loop to plot all processed frequencies
         if all(all(NAN(:,glo_prns,j))); i_plot = i_plot + 1 + bool_phase; continue; end
         subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
-        plotCodeHisto(Code_res(:,glo_prns,j), 'GLONASS', sprintf('%d', j), [1 0 1])
+        plotCodeHisto(Code_res(:,glo_prns,j), 'GLONASS', sprintf('%d', j), DEF.COLOR_R)
         if ~isempty(Phase_res) && bool_phase
             subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
-            plotPhaseHisto(Phase_res(:,glo_prns,j), 'GLONASS', sprintf('%d', j), [0.5 0.0 0.5])
+            plotPhaseHisto(Phase_res(:,glo_prns,j), 'GLONASS', sprintf('%d', j), DEF.COLOR_R*0.66)
         end
+        if ~isempty(Doppler_res) && bool_doppler
+            subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
+            plotDopplerHisto(Doppler_res(:,glo_prns,j), 'GLONASS', sprintf('%d', j), DEF.COLOR_R/3)
+        end           
     end
 end
 
@@ -62,11 +71,15 @@ if ~isempty(gal_prns)
     for j = 1:no_frqs     % loop to plot all processed frequencies
         if all(all(NAN(:,gal_prns,j))); i_plot = i_plot + 1+ bool_phase; continue; end
         subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
-        plotCodeHisto(Code_res(:,gal_prns,j), 'Galileo', sprintf('%d', j), [0 0 1])
+        plotCodeHisto(Code_res(:,gal_prns,j), 'Galileo', sprintf('%d', j), DEF.COLOR_E)
         if ~isempty(Phase_res) && bool_phase
             subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
-            plotPhaseHisto(Phase_res(:,gal_prns,j), 'Galileo', sprintf('%d', j), [0.0 0.0 0.5])
+            plotPhaseHisto(Phase_res(:,gal_prns,j), 'Galileo', sprintf('%d', j), DEF.COLOR_E*0.66)
         end
+        if ~isempty(Doppler_res) && bool_doppler
+            subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
+            plotDopplerHisto(Doppler_res(:,gal_prns,j), 'Galileo', sprintf('%d', j), DEF.COLOR_E/3)
+        end          
     end
 end
 
@@ -75,11 +88,15 @@ if ~isempty(bds_prns)
     for j = 1:no_frqs     % loop to plot all processed frequencies
         if all(all(NAN(:,bds_prns,j))); i_plot = i_plot + 1 + bool_phase; continue; end
         subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
-        plotCodeHisto(Code_res(:,bds_prns,j), 'BeiDou', sprintf('%d', j), [0 1 1])
+        plotCodeHisto(Code_res(:,bds_prns,j), 'BeiDou', sprintf('%d', j), DEF.COLOR_C)
         if ~isempty(Phase_res) && bool_phase
             subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
-            plotPhaseHisto(Phase_res(:,bds_prns,j), 'BeiDou', sprintf('%d', j), [0 0.5 0.5])
+            plotPhaseHisto(Phase_res(:,bds_prns,j), 'BeiDou', sprintf('%d', j), DEF.COLOR_C*0.66)
         end
+        if ~isempty(Doppler_res) && bool_doppler
+            subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
+            plotDopplerHisto(Doppler_res(:,bds_prns,j), 'BeiDou', sprintf('%d', j), DEF.COLOR_C/3)
+        end          
     end
 end
 
@@ -88,11 +105,15 @@ if ~isempty(qzss_prns)
     for j = 1:no_frqs     % loop to plot all processed frequencies
         if all(all(NAN(:,qzss_prns,j))); i_plot = i_plot + 1 + bool_phase; continue; end
         subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
-        plotCodeHisto(Code_res(:,qzss_prns,j), 'QZSS', sprintf('%d', j), [0 1 1])
+        plotCodeHisto(Code_res(:,qzss_prns,j), 'QZSS', sprintf('%d', j), DEF.COLOR_J)
         if ~isempty(Phase_res) && bool_phase
             subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
-            plotPhaseHisto(Phase_res(:,qzss_prns,j), 'QZSS', sprintf('%d', j), [0 0.5 0.5])
+            plotPhaseHisto(Phase_res(:,qzss_prns,j), 'QZSS', sprintf('%d', j), DEF.COLOR_J*0.66)
         end
+        if ~isempty(Doppler_res) && bool_doppler
+            subplot(no_rows, no_cols, i_plot); i_plot = i_plot + 1;
+            plotDopplerHisto(Doppler_res(:,qzss_prns,j), 'QZSS', sprintf('%d', j), DEF.COLOR_J/3)
+        end          
     end
 end
 
@@ -128,6 +149,22 @@ histogram(phase_res_h, n_p, 'Normalization', 'probability', 'FaceColor', coleur)
 title({[gnss ' Phase ' freq]}, 'fontsize', 11);
 if std_p~=0; xlim(4*[-std_p std_p]); end
 xlabel(sprintf('std-dev = %2.3f, bias = %2.3f; [m]\n', std_p, bias_p))
+ylabel('[%]')
+ylim([0 1])
+
+
+% function to plot a Doppler histogram
+function [] = plotDopplerHisto(phase_res_h, gnss, freq, coleur)
+phase_res_h = phase_res_h(:);
+phase_res_h = phase_res_h(~isnan(phase_res_h));
+n_p = round(1 + 3.322*log(numel(phase_res_h)));
+std_p = std(phase_res_h);
+bias_p = sum(phase_res_h)/numel(phase_res_h);
+% Histogramming
+histogram(phase_res_h, n_p, 'Normalization', 'probability', 'FaceColor', coleur)
+title({[gnss ' Doppler ' freq]}, 'fontsize', 11);
+if std_p~=0; xlim(4*[-std_p std_p]); end
+xlabel(sprintf('std-dev = %2.3f, bias = %2.3f; [m/s]\n', std_p, bias_p))
 ylabel('[%]')
 ylim([0 1])
 
